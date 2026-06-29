@@ -1,0 +1,384 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #FAF8F5;
+  color: #27272a;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4 {
+  font-family: "Georgia", serif;
+  letter-spacing: 0.05em;
+}
+
+.navbar {
+  position: sticky;
+  top: 0;
+  background-color: #ffffff;
+  border-bottom: 1px solid #f4f4f5;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 100;
+}
+
+.nav-logo {
+  font-size: 1.25rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.15em;
+}
+
+.nav-logo span {
+  color: #b45309;
+  font-weight: 300;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #71717a;
+  cursor: pointer;
+  padding-bottom: 4px;
+  border-bottom: 2px solid transparent;
+}
+
+.nav-btn.active {
+  color: #b45309;
+  border-bottom: 2px solid #b45309;
+}
+
+.hero-section {
+  text-align: center;
+  padding: 6rem 1rem;
+  background: linear-gradient(to bottom, #fef3c7, transparent);
+}
+
+.hero-subtitle {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #92400e;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.hero-title {
+  font-size: 2.5rem;
+  max-width: 768px;
+  margin: 0 auto;
+  line-height: 1.2;
+}
+
+.hero-desc {
+  color: #71717a;
+  margin-top: 1rem;
+  max-width: 448px;
+  margin: 1rem auto 0 auto;
+  font-size: 0.875rem;
+}
+
+.hero-actions {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.btn-primary {
+  background-color: #18181b;
+  color: #ffffff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  background-color: #ffffff;
+  color: #27272a;
+  border: 1px solid #d4d4d8;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.features-grid {
+  max-width: 1024px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  background: white;
+  padding: 1.5rem;
+  border: 1px solid #f4f4f5;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.feature-card h4 {
+  color: #92400e;
+  margin-bottom: 0.5rem;
+}
+
+.feature-card p {
+  color: #71717a;
+  font-size: 0.75rem;
+}
+
+.catalog-container {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+}
+
+.catalog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.filter-pills {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pill {
+  background-color: #ffffff;
+  color: #52525b;
+  border: 1px solid #e4e4e7;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.pill.active {
+  background-color: #92400e;
+  color: #ffffff;
+  border-color: #92400e;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.product-card {
+  background: white;
+  border: 1px solid #f4f4f5;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-img-wrapper {
+  height: 18rem;
+  position: relative;
+}
+
+.product-img-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.9);
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.product-info {
+  padding: 1.25rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.product-cat {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: #92400e;
+  text-transform: uppercase;
+}
+
+.product-title {
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+.product-desc {
+  color: #71717a;
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.product-footer {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #fafafa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.product-price {
+  font-weight: 700;
+}
+
+.product-link {
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.form-container {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.form-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.form-header span {
+  font-size: 0.75rem;
+  color: #92400e;
+  font-weight: 700;
+}
+
+.bespoke-form {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  border: 1px solid #f4f4f5;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #52525b;
+  margin-bottom: 0.25rem;
+}
+
+.form-group input {
+  font-size: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  background-color: #FAF8F5;
+  outline: none;
+}
+
+.metrics-section {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.metrics-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  border-bottom: 1px solid #e4e4e7;
+  padding-bottom: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.text-center-input {
+  text-align: center;
+}
+
+.btn-submit {
+  width: 100%;
+  background-color: #18181b;
+  color: white;
+  border: none;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  flex-grow: 1;
+}
+
+.footer {
+  background-color: #f4f4f5;
+  text-align: center;
+  padding: 1.5rem;
+  border-top: 1px solid #e4e4e7;
+  font-size: 0.625rem;
+  color: #a1a1aa;
+  letter-spacing: 0.1em;
+}
