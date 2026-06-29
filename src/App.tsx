@@ -49,12 +49,12 @@ const INITIAL_PRODUCTS: Product[] = [
 ];
 
 export default function App() {
-  // 1. Added 'login' and 'register' to our view navigation state
-  const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'login' | 'register'>('home');
+  // FIXED: Default state reset back to 'home' so guests and regular users land on the homepage
+  const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'login' | 'register' | 'admin'>('home');
   const [products] = useState<Product[]>(INITIAL_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
-  // Authentication State
+ 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -62,18 +62,28 @@ export default function App() {
   const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Bespoke Fitting Form State
+
   const [clientName, setClientName] = useState('');
   const [email, setEmail] = useState('');
   const [bust, setBust] = useState('');
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
 
-  // Check if user is already logged in when application starts
+ 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+      const parsedUser = JSON.parse(savedUser);
+      setCurrentUser(parsedUser);
+      
+      // If an admin rehard-refreshes the page, keep them on the admin panel workspace
+      if (parsedUser.role === 'admin') {
+        setView('admin');
+      } else {
+        setView('home');
+      }
+    } else {
+      setView('home');
     }
   }, []);
 
@@ -81,9 +91,8 @@ export default function App() {
     ? products 
     : products.filter(p => p.category === selectedCategory);
 
-  // --- API HANDLERS ---
 
-  // Handle Login Request via Axios
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -95,17 +104,21 @@ export default function App() {
         localStorage.setItem('user', JSON.stringify(response.data.user));
         setCurrentUser(response.data.user);
         
-        // Reset fields and redirect
         setAuthEmail('');
         setAuthPassword('');
-        setView('home');
+        
+       
+        if (response.data.user.role === 'admin') {
+          setView('admin');
+        } else {
+          setView('home');
+        }
       }
     } catch (err: any) {
       setAuthError(err.response?.data?.message || 'Invalid credentials. Please try again.');
     }
   };
 
-  // Handle Registration Request via Axios
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -122,7 +135,6 @@ export default function App() {
         localStorage.setItem('user', JSON.stringify(response.data.user));
         setCurrentUser(response.data.user);
 
-        // Reset fields and redirect
         setAuthName('');
         setAuthEmail('');
         setAuthPassword('');
@@ -134,7 +146,6 @@ export default function App() {
     }
   };
 
-  // Handle Logout
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -160,7 +171,13 @@ export default function App() {
           <button onClick={() => setView('catalog')} className={`nav-btn ${view === 'catalog' ? 'active' : ''}`}>Collections</button>
           <button onClick={() => setView('bespoke')} className={`nav-btn ${view === 'bespoke' ? 'active' : ''}`}>Bespoke Fitting</button>
           
-          {/* Dynamic Navbar adjustments for User Session */}
+          {/* FIXED SECURE SHORTCUT: Tab only mounts in navbar if an active user with the admin role exists */}
+          {currentUser && currentUser.role === 'admin' && (
+            <button onClick={() => setView('admin')} className={`nav-btn ${view === 'admin' ? 'active' : ''}`} style={{ color: '#d9534f', fontWeight: 'bold' }}>
+              Admin Dashboard ⚙️
+            </button>
+          )}
+          
           {currentUser ? (
             <div className="user-nav-section" style={{ display: 'inline-block', marginLeft: '10px' }}>
               <span className="welcome-txt" style={{ marginRight: '10px', color: '#666' }}>Hello, {currentUser.name}</span>
@@ -295,7 +312,58 @@ export default function App() {
           </div>
         )}
 
-        {/* --- NEW LOGIN COMPONENT SCREEN --- */}
+        
+        {view === 'admin' && currentUser && currentUser.role === 'admin' && (
+          <div className="form-container" style={{ maxWidth: '1000px' }}>
+            <div className="form-header" style={{ borderBottom: '20px solid #f9f9f9', paddingBottom: '15px' }}>
+              <span style={{ background: '#d9534f', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontSize: '12px' }}>Atelier Executive Rights</span>
+              <h3>Bespoke Orders & Fitting Management</h3>
+              <p>Review customer parameters, metrics submissions, and update processing statuses.</p>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', margin: '20px 0' }}>
+              <div style={{ background: '#fcf8fb', padding: '15px', borderRadius: '6px', borderLeft: '4px solid #b392ac' }}>
+                <h5 style={{ margin: 0, color: '#666' }}>Pending Fittings</h5>
+                <h2 style={{ margin: '5px 0 0 0' }}>12 Orders</h2>
+              </div>
+              <div style={{ background: '#fcf8fb', padding: '15px', borderRadius: '6px', borderLeft: '4px solid #5cb85c' }}>
+                <h5 style={{ margin: 0, color: '#666' }}>Completed Appts</h5>
+                <h2 style={{ margin: '5px 0 0 0' }}>48 Checked</h2>
+              </div>
+              <div style={{ background: '#fcf8fb', padding: '15px', borderRadius: '6px', borderLeft: '4px solid #f0ad4e' }}>
+                <h5 style={{ margin: 0, color: '#666' }}>In Tailoring Phase</h5>
+                <h2 style={{ margin: '5px 0 0 0' }}>6 Designs</h2>
+              </div>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '25px', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
+                  <th style={{ padding: '10px' }}>Client</th>
+                  <th style={{ padding: '10px' }}>Fabric & Style Request</th>
+                  <th style={{ padding: '10px' }}>Bust / Waist / Hips</th>
+                  <th style={{ padding: '10px' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '12px 10px' }}><b>Aarathi Suresh</b><br/><span style={{fontSize:'12px', color:'#777'}}>aarathisuresh93@gmail.com</span></td>
+                  <td>Amara Crimson Silk Saree</td>
+                  <td>34" / 28" / 38"</td>
+                  <td><span style={{ color: '#f0ad4e', fontWeight: 'bold' }}>Pending Queue</span></td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #eee' }}>
+                  <td style={{ padding: '12px 10px' }}><b>Anjali Sharma</b><br/><span style={{fontSize:'12px', color:'#777'}}>anjali@example.com</span></td>
+                  <td>Elysian Rose Wedding Gown</td>
+                  <td>36" / 30" / 40"</td>
+                  <td><span style={{ color: '#5cb85c', fontWeight: 'bold' }}>Pattern Cut Complete</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+       
         {view === 'login' && (
           <div className="form-container">
             <div className="form-header">
@@ -303,22 +371,17 @@ export default function App() {
               <h3>Atelier Login</h3>
               <p>Sign in to review custom parameters and track design progress.</p>
             </div>
-
             <form onSubmit={handleLoginSubmit} className="bespoke-form" style={{ maxWidth: '450px', margin: '0 auto' }}>
               {authError && <div className="error-message" style={{ color: '#d9534f', marginBottom: '15px', fontWeight: 'bold' }}>{authError}</div>}
-              
               <div className="form-group" style={{ marginBottom: '15px' }}>
                 <label>Email Address</label>
                 <input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="yourname@example.com" />
               </div>
-
               <div className="form-group" style={{ marginBottom: '20px' }}>
                 <label>Password</label>
                 <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="••••••••" />
               </div>
-
               <button type="submit" className="btn-submit">Log In</button>
-              
               <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px' }}>
                 New to the Atelier? <span onClick={() => { setAuthError(''); setView('register'); }} style={{ color: '#b392ac', cursor: 'pointer', textDecoration: 'underline' }}>Create an Account</span>
               </p>
@@ -326,7 +389,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- NEW REGISTER COMPONENT SCREEN --- */}
+        
         {view === 'register' && (
           <div className="form-container">
             <div className="form-header">
@@ -334,32 +397,25 @@ export default function App() {
               <h3>Create Atelier Profile</h3>
               <p>Join the boutique platform to queue orders and log fittings.</p>
             </div>
-
             <form onSubmit={handleRegisterSubmit} className="bespoke-form" style={{ maxWidth: '450px', margin: '0 auto' }}>
               {authError && <div className="error-message" style={{ color: '#d9534f', marginBottom: '15px', fontWeight: 'bold' }}>{authError}</div>}
-              
               <div className="form-group" style={{ marginBottom: '15px' }}>
                 <label>Full Name</label>
                 <input required type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Anjali Sharma" />
               </div>
-
               <div className="form-group" style={{ marginBottom: '15px' }}>
                 <label>Email Address</label>
                 <input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="anjali@example.com" />
               </div>
-
               <div className="form-group" style={{ marginBottom: '15px' }}>
                 <label>Phone Number (Optional)</label>
                 <input type="text" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
               </div>
-
               <div className="form-group" style={{ marginBottom: '20px' }}>
                 <label>Password</label>
                 <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Min 6 characters" />
               </div>
-
               <button type="submit" className="btn-submit">Register Profile</button>
-              
               <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px' }}>
                 Already registered? <span onClick={() => { setAuthError(''); setView('login'); }} style={{ color: '#b392ac', cursor: 'pointer', textDecoration: 'underline' }}>Login here</span>
               </p>
