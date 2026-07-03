@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import API from './api/axios'; // Make sure this path correctly points to your axios.js file
+import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import API from './api/axios'; 
 
 interface Product {
   id: number;
@@ -49,12 +49,12 @@ const INITIAL_PRODUCTS: Product[] = [
 ];
 
 export default function App() {
-  // FIXED: Default state reset back to 'home' so guests and regular users land on the homepage
+  // Navigation View State
   const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'login' | 'register' | 'admin'>('home');
   const [products] = useState<Product[]>(INITIAL_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
- 
+  
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -62,21 +62,29 @@ export default function App() {
   const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState('');
 
-
+ 
   const [clientName, setClientName] = useState('');
   const [email, setEmail] = useState('');
   const [bust, setBust] = useState('');
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
 
- 
+  
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdDesc, setNewProdDesc] = useState('');
+  const [newProdPrice, setNewProdPrice] = useState('');
+  const [newProdCategory, setNewProdCategory] = useState(''); // MongoDB Category ObjectId string
+  const [newProdFabric, setNewProdFabric] = useState('');
+  const [newProdCare, setNewProdCare] = useState('');
+  const [imageString, setImageString] = useState('');
+  const [uploadStatus, setUploadStatus] = useState('');
+
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
       setCurrentUser(parsedUser);
       
-      // If an admin rehard-refreshes the page, keep them on the admin panel workspace
       if (parsedUser.role === 'admin') {
         setView('admin');
       } else {
@@ -91,7 +99,57 @@ export default function App() {
     ? products 
     : products.filter(p => p.category === selectedCategory);
 
+  
+  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageString(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
+  
+  const handleProductSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setUploadStatus('Uploading new designer asset details...');
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      const payload = {
+        name: newProdName,
+        description: newProdDesc,
+        price: Number(newProdPrice),
+        category: newProdCategory,
+        fabric: newProdFabric,
+        care: newProdCare,
+        images: [{ url: imageString, isMain: true }],
+        variants: [{ size: 'M', color: 'ivory', stock: 5, sku: `WWB-${Date.now()}` }]
+      };
+
+      const response = await API.post('/products', payload, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.data.success) {
+        setUploadStatus('🎉 Product uploaded live and successfully committed to Atlas database!');
+        setNewProdName('');
+        setNewProdDesc('');
+        setNewProdPrice('');
+        setNewProdCategory('');
+        setNewProdFabric('');
+        setNewProdCare('');
+        setImageString('');
+      }
+    } catch (err: any) {
+      setUploadStatus(`❌ Server Rejected Upload: ${err.response?.data?.message || err.message}`);
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +165,6 @@ export default function App() {
         setAuthEmail('');
         setAuthPassword('');
         
-       
         if (response.data.user.role === 'admin') {
           setView('admin');
         } else {
@@ -171,7 +228,6 @@ export default function App() {
           <button onClick={() => setView('catalog')} className={`nav-btn ${view === 'catalog' ? 'active' : ''}`}>Collections</button>
           <button onClick={() => setView('bespoke')} className={`nav-btn ${view === 'bespoke' ? 'active' : ''}`}>Bespoke Fitting</button>
           
-          {/* FIXED SECURE SHORTCUT: Tab only mounts in navbar if an active user with the admin role exists */}
           {currentUser && currentUser.role === 'admin' && (
             <button onClick={() => setView('admin')} className={`nav-btn ${view === 'admin' ? 'active' : ''}`} style={{ color: '#d9534f', fontWeight: 'bold' }}>
               Admin Dashboard ⚙️
@@ -296,7 +352,7 @@ export default function App() {
                   </div>
                   <div className="form-group">
                     <label style={{ textAlign: 'center' }}>Waist Line</label>
-                    <input className="text-center-input" required type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="28" />
+                    <input className="text-center-input" required type="number" value={waist} onChange={e => setBaist(e.target.value)} placeholder="28" />
                   </div>
                   <div className="form-group">
                     <label style={{ textAlign: 'center' }}>Hips Span</label>
@@ -315,7 +371,7 @@ export default function App() {
         
         {view === 'admin' && currentUser && currentUser.role === 'admin' && (
           <div className="form-container" style={{ maxWidth: '1000px' }}>
-            <div className="form-header" style={{ borderBottom: '20px solid #f9f9f9', paddingBottom: '15px' }}>
+            <div className="form-header" style={{ borderBottom: '2px solid #eee', paddingBottom: '15px' }}>
               <span style={{ background: '#d9534f', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontSize: '12px' }}>Atelier Executive Rights</span>
               <h3>Bespoke Orders & Fitting Management</h3>
               <p>Review customer parameters, metrics submissions, and update processing statuses.</p>
@@ -360,10 +416,51 @@ export default function App() {
                 </tr>
               </tbody>
             </table>
+
+            
+            <div style={{ marginTop: '50px', paddingTop: '30px', borderTop: '2px dashed #ccc' }}>
+              <h3 style={{ margin: '0 0 5px 0' }}>Add Live Product Asset</h3>
+              <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Fill out structural parameters to directly commit items to MongoDB cloud collections.</p>
+              
+              {uploadStatus && <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '4px', marginBottom: '15px', fontWeight: 'bold', borderLeft: '4px solid #000' }}>{uploadStatus}</div>}
+              
+              <form onSubmit={handleProductSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div className="form-group">
+                  <label>Product Name</label>
+                  <input required type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="e.g., Premium Ivory Lace Veil" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                </div>
+                <div className="form-group">
+                  <label>Price (INR)</label>
+                  <input required type="number" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="e.g., 12500" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                </div>
+                <div className="form-group">
+                  <label>Category ID (From MongoDB Object Collection)</label>
+                  <input required type="text" value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} placeholder="Paste MongoDB ID string" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                </div>
+                <div className="form-group">
+                  <label>Fabric Matrix</label>
+                  <input type="text" value={newProdFabric} onChange={e => setNewProdFabric(e.target.value)} placeholder="e.g., Silk Organza" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                </div>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Product Design Description</label>
+                  <textarea required value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} placeholder="Describe custom attributes, textures, styling silhouettes..." style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', height: '8px' }} />
+                </div>
+                <div className="form-group">
+                  <label>Care Instructions</label>
+                  <input type="text" value={newProdCare} onChange={e => setNewProdCare(e.target.value)} placeholder="e.g., Dry Clean Only" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                </div>
+                <div className="form-group">
+                  <label>Upload Asset Graphic File</label>
+                  <input required type="file" accept="image/*" onChange={handleImageUpload} style={{ width: '100%', padding: '5px' }} />
+                </div>
+                <button type="submit" className="btn-submit" style={{ gridColumn: 'span 2', background: '#000', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' }}>
+                  Publish & Deploy Product To Shop
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
-       
         {view === 'login' && (
           <div className="form-container">
             <div className="form-header">
@@ -389,7 +486,6 @@ export default function App() {
           </div>
         )}
 
-        
         {view === 'register' && (
           <div className="form-container">
             <div className="form-header">
