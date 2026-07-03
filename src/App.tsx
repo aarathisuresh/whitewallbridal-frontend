@@ -1,13 +1,15 @@
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import API from './api/axios'; 
 
-interface Product {
-  id: number;
+// A flexible product shape that works for both the hardcoded showcase items
+// and the real products coming back from MongoDB.
+interface DisplayProduct {
+  key: string;        // unique key for React (id or _id)
   name: string;
-  category: string;
+  category: string;   // normalized to a readable name like "Sarees"
   price: number;
   fabric: string;
-  image: string;
+  image: string;      // normalized to a single image URL
   description: string;
 }
 
@@ -18,9 +20,10 @@ interface User {
   role: string;
 }
 
-const INITIAL_PRODUCTS: Product[] = [
+// Showcase items always shown at the top of the catalog.
+const INITIAL_PRODUCTS: DisplayProduct[] = [
   {
-    id: 1,
+    key: 'showcase-1',
     name: 'Amara Crimson Silk Bridal Saree',
     category: 'Sarees',
     price: 45000,
@@ -29,7 +32,7 @@ const INITIAL_PRODUCTS: Product[] = [
     description: 'A breathtaking Banarasi silk masterpiece adorned with intricate golden zari work.'
   },
   {
-    id: 2,
+    key: 'showcase-2',
     name: 'Ivory Blossom Anarkali Kurti',
     category: 'Kurtis',
     price: 8500,
@@ -38,7 +41,7 @@ const INITIAL_PRODUCTS: Product[] = [
     description: 'An elegant hand-embroidered silhouette radiating modern minimalism.'
   },
   {
-    id: 3,
+    key: 'showcase-3',
     name: 'Elysian Rose Wedding Gown',
     category: 'Dresses',
     price: 120000,
@@ -48,10 +51,38 @@ const INITIAL_PRODUCTS: Product[] = [
   }
 ];
 
+// Converts a raw product document from MongoDB into the flat shape the UI needs.
+const normalizeDbProduct = (p: any): DisplayProduct => {
+  // category may be a populated object { _id, name } or just an id string
+  let categoryName = 'Uncategorized';
+  if (p.category && typeof p.category === 'object' && p.category.name) {
+    categoryName = p.category.name;
+  } else if (typeof p.category === 'string') {
+    categoryName = p.category;
+  }
+
+  // images is an array of { url, isMain }; pick the main one, else the first
+  let imageUrl = 'https://via.placeholder.com/600x800?text=No+Image';
+  if (Array.isArray(p.images) && p.images.length > 0) {
+    const mainImg = p.images.find((img: any) => img.isMain) || p.images[0];
+    if (mainImg && mainImg.url) imageUrl = mainImg.url;
+  }
+
+  return {
+    key: p._id || `db-${Math.random()}`,
+    name: p.name || 'Untitled Product',
+    category: categoryName,
+    price: typeof p.price === 'number' ? p.price : Number(p.price) || 0,
+    fabric: p.fabric || 'Premium Fabric',
+    image: imageUrl,
+    description: p.description || ''
+  };
+};
+
 export default function App() {
   // Navigation View State
   const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'login' | 'register' | 'admin'>('home');
-  const [products] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [dbProducts, setDbProducts] = useState<DisplayProduct[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
   
@@ -79,6 +110,18 @@ export default function App() {
   const [imageString, setImageString] = useState('');
   const [uploadStatus, setUploadStatus] = useState('');
 
+  // Fetch products from the backend so newly published items appear in the catalog.
+  const fetchProducts = async () => {
+    try {
+      const response = await API.get('/products');
+      if (response.data.success && Array.isArray(response.data.data)) {
+        setDbProducts(response.data.data.map(normalizeDbProduct));
+      }
+    } catch (err) {
+      console.error('Failed to load products from server:', err);
+    }
+  };
+
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
@@ -93,11 +136,17 @@ export default function App() {
     } else {
       setView('home');
     }
+
+    // Load live products on first render.
+    fetchProducts();
   }, []);
 
+  // Combine showcase products with the live database products.
+  const allProducts = [...INITIAL_PRODUCTS, ...dbProducts];
+
   const filteredProducts = selectedCategory === 'All' 
-    ? products 
-    : products.filter(p => p.category === selectedCategory);
+    ? allProducts 
+    : allProducts.filter(p => p.category === selectedCategory);
 
   
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -145,6 +194,9 @@ export default function App() {
         setNewProdFabric('');
         setNewProdCare('');
         setImageString('');
+
+        // Refresh the catalog so the new product shows up immediately.
+        fetchProducts();
       }
     } catch (err: any) {
       setUploadStatus(`❌ Server Rejected Upload: ${err.response?.data?.message || err.message}`);
@@ -299,7 +351,7 @@ export default function App() {
 
             <div className="products-grid">
               {filteredProducts.map(p => (
-                <div key={p.id} className="product-card">
+                <div key={p.key} className="product-card">
                   <div className="product-img-wrapper">
                     <img src={p.image} alt={p.name} />
                     <span className="product-badge">{p.fabric}</span>
