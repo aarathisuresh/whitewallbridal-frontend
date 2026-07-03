@@ -352,7 +352,7 @@ export default function App() {
                   </div>
                   <div className="form-group">
                     <label style={{ textAlign: 'center' }}>Waist Line</label>
-                    <input className="text-center-input" required type="number" value={waist} onChange={e => setBaist(e.target.value)} placeholder="28" />
+                    <input className="text-center-input" required type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="28" />
                   </div>
                   <div className="form-group">
                     <label style={{ textAlign: 'center' }}>Hips Span</label>
@@ -443,7 +443,7 @@ export default function App() {
                 </div>
                 <div className="form-group" style={{ gridColumn: 'span 2' }}>
                   <label>Product Design Description</label>
-                  <textarea required value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} placeholder="Describe custom attributes, textures, styling silhouettes..." style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', height: '8px' }} />
+                  <textarea required value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} placeholder="Describe custom attributes, textures, styling silhouettes..." style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', height: '100px' }} />
                 </div>
                 <div className="form-group">
                   <label>Care Instructions</label>
