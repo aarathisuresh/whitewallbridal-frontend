@@ -69,14 +69,14 @@ const MOCK_ORDERS: Order[] = [
 export default function App() {
   // Navigation View States
   const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'auth' | 'user-portal' | 'admin'>('home');
-  const [isLoginMode, setIsLoginMode] = useState<boolean>(true); // Toggles login vs registration view cleanly
+  const [isLoginMode, setIsLoginMode] = useState<boolean>(true);
   const [userSubView, setUserSubView] = useState<'cart' | 'wishlist' | 'orders'>('cart');
   const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'customers' | 'uploader'>('fittings');
   
   const [products] = useState<Product[]>(INITIAL_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
-  // Customer State Containers
+  // Shared State Containers
   const [cart, setCart] = useState<{product: Product, count: number}[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>(MOCK_ORDERS);
@@ -90,7 +90,7 @@ export default function App() {
   const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Fitting Parameters State
+  // Bespoke Fitting States
   const [clientName, setClientName] = useState('');
   const [email, setEmail] = useState('');
   const [bust, setBust] = useState('');
@@ -103,6 +103,7 @@ export default function App() {
   const [newProdPrice, setNewProdPrice] = useState('');
   const [newProdCategory, setNewProdCategory] = useState(''); 
   const [newProdFabric, setNewProdFabric] = useState('');
+  const [newProdMaterial, setNewProdMaterial] = useState(''); // New box added
   const [newProdCare, setNewProdCare] = useState('');
   const [imageString, setImageString] = useState('');
   const [uploadStatus, setUploadStatus] = useState('');
@@ -157,6 +158,7 @@ export default function App() {
     }, 1500);
   };
 
+  // Critical Fix: Mutating this shared master order array instantly updates the specific customer portal page status
   const updateStatus = (orderId: string, nextStatus: Order['status']) => {
     setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
   };
@@ -181,6 +183,7 @@ export default function App() {
         price: Number(newProdPrice),
         category: newProdCategory,
         fabric: newProdFabric,
+        materialType: newProdMaterial, // Configured inside database payload parameters
         care: newProdCare,
         images: [{ url: imageString, isMain: true }],
         variants: [{ size: 'M', color: 'ivory', stock: 5, sku: `WWB-${Date.now()}` }]
@@ -192,7 +195,7 @@ export default function App() {
 
       if (response.data.success) {
         setUploadStatus('🎉 Product uploaded live and successfully committed to Atlas database!');
-        setNewProdName(''); setNewProdDesc(''); setNewProdPrice(''); setNewProdCategory(''); setNewProdFabric(''); setNewProdCare(''); setImageString('');
+        setNewProdName(''); setNewProdDesc(''); setNewProdPrice(''); setNewProdCategory(''); setNewProdFabric(''); setNewProdMaterial(''); setNewProdCare(''); setImageString('');
       }
     } catch (err: any) {
       setUploadStatus(`❌ Server Rejected Upload: ${err.response?.data?.message || err.message}`);
@@ -253,7 +256,6 @@ export default function App() {
           <button onClick={() => setView('catalog')} className={`nav-btn ${view === 'catalog' ? 'active' : ''}`}>Collections</button>
           <button onClick={() => setView('bespoke')} className={`nav-btn ${view === 'bespoke' ? 'active' : ''}`}>Bespoke Fitting</button>
           
-          {/* CRITICAL FIX: Only customer roles see the shopping suite controls */}
           {currentUser && currentUser.role !== 'admin' && (
             <button onClick={() => { setView('user-portal'); setUserSubView('cart'); }} className={`nav-btn ${view === 'user-portal' ? 'active' : ''}`}>
               My Shopping Suite ({cart.reduce((a,c)=>a+c.count, 0)}) 🛍️
@@ -310,7 +312,6 @@ export default function App() {
                   <div className="product-info">
                     <h4 className="product-title">{p.name}</h4>
                     <span className="product-price">₹{p.price.toLocaleString('en-IN')}</span>
-                    {/* CRITICAL FIX: Hide addition handlers if logged in user is admin */}
                     {currentUser?.role !== 'admin' && (
                       <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                         <button onClick={() => addToCart(p)} className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>Add to Cart</button>
@@ -409,7 +410,7 @@ export default function App() {
               <button onClick={() => setAdminSubView('fittings')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'fittings' ? '#000' : 'transparent', color: adminSubView === 'fittings' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Bespoke Custom Fits</button>
               <button onClick={() => setAdminSubView('orders')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'orders' ? '#000' : 'transparent', color: adminSubView === 'orders' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Order Management</button>
               <button onClick={() => setAdminSubView('customers')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'customers' ? '#000' : 'transparent', color: adminSubView === 'customers' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Customer Profiles</button>
-              <button onClick={() => setAdminSubView('uploader')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'uploader' ? '#000' : 'transparent', color: adminSubView === 'uploader' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Product Asset Uploader</button>
+              <button onClick={() => setAdminSubView('uploader')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'uploader' ? '#000' : 'transparent', color: adminSubView === 'uploader' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Product Uploader</button>
             </div>
 
             {adminSubView === 'fittings' && (
@@ -436,6 +437,7 @@ export default function App() {
                             <option value="Pattern Cutting">Pattern Cutting</option>
                             <option value="In Tailoring">In Tailoring</option>
                             <option value="Shipped">Shipped</option>
+                            <option value="Delivered">Delivered</option>
                           </select>
                         </td>
                       </tr>
@@ -454,6 +456,7 @@ export default function App() {
                       <th style={{ padding: '10px' }}>Order ID</th>
                       <th style={{ padding: '10px' }}>Products Purchased</th>
                       <th style={{ padding: '10px' }}>Total Invoice Bill</th>
+                      <th style={{ padding: '10px' }}>Status Execution</th> {/* Added implementation column */}
                       <th style={{ padding: '10px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -463,6 +466,16 @@ export default function App() {
                         <td style={{ padding: '10px' }}>{o.id}</td>
                         <td>{o.items}</td>
                         <td>₹{o.total.toLocaleString('en-IN')}</td>
+                        <td>
+                          {/* Status Execution Dropdown added to Order Management Matrix */}
+                          <select value={o.status} onChange={(e) => updateStatus(o.id, e.target.value as any)} style={{ padding: '4px', borderRadius: '4px' }}>
+                            <option value="Pending">Pending Queue</option>
+                            <option value="Pattern Cutting">Pattern Cutting</option>
+                            <option value="In Tailoring">In Tailoring</option>
+                            <option value="Shipped">Shipped</option>
+                            <option value="Delivered">Delivered</option>
+                          </select>
+                        </td>
                         <td>
                           <button onClick={() => setActiveInvoice(o)} style={{ padding: '4px 8px', background: '#5bc0de', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📄 Generate Invoice</button>
                         </td>
@@ -506,12 +519,19 @@ export default function App() {
                 <form onSubmit={handleProductSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                   <input required type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="Product Name" style={{ padding: '8px' }} />
                   <input required type="number" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="Price (INR)" style={{ padding: '8px' }} />
+                  <input required type="text" value={newProdFabric} onChange={e => setNewProdFabric(e.target.value)} placeholder="Fabric Details" style={{ padding: '8px' }} />
+                  
+                  {/* Newly Integrated Box for Material Type */}
+                  <input required type="text" value={newProdMaterial} onChange={e => setNewProdMaterial(e.target.value)} placeholder="Material Type (e.g., Silk Blend, Net)" style={{ padding: '8px' }} />
+                  
                   <input required type="text" value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} placeholder="Category MongoDB ObjectId String" style={{ padding: '8px', gridColumn: 'span 2' }} />
                   <textarea required value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} placeholder="Design Description..." style={{ padding: '8px', gridColumn: 'span 2', height: '60px' }} />
                   <input type="file" accept="image/*" onChange={handleImageUpload} style={{ gridColumn: 'span 2' }} />
-                  <button type="submit" className="btn-submit" style={{ gridColumn: 'span 2', background: '#000', color: '#fff', padding: '10px' }}>Publish To MongoDB Atlas</button>
+                  
+                  {/* Renamed Button Action to Publish */}
+                  <button type="submit" className="btn-submit" style={{ gridColumn: 'span 2', background: '#000', color: '#fff', padding: '10px', cursor: 'pointer', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>Publish</button>
                 </form>
-                {uploadStatus && <p>{uploadStatus}</p>}
+                {uploadStatus && <p style={{ marginTop: '10px', fontWeight: '500' }}>{uploadStatus}</p>}
               </div>
             )}
           </div>
@@ -543,7 +563,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- RESTORED AND INTEGRATED AUTH FORM (LOGIN/REGISTER CHANGER) --- */}
+        {/* --- AUTH CONSOLE --- */}
         {view === 'auth' && (
           <div className="form-container" style={{ maxWidth: '450px', margin: '40px auto', background: '#fff', padding: '30px', borderRadius: '8px', border: '1px solid #eee' }}>
             {isLoginMode ? (
