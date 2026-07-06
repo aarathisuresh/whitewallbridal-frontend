@@ -1,5 +1,5 @@
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
-import API from './api/axios'; // Make sure this path correctly points to your axios.js file
+import API from './api/axios'; // Verified database connection reference
 
 interface Product {
   id: number;
@@ -18,7 +18,6 @@ interface User {
   role: string;
 }
 
-// Interface for expanded management records
 interface Order {
   id: string;
   clientName: string;
@@ -68,21 +67,22 @@ const MOCK_ORDERS: Order[] = [
 ];
 
 export default function App() {
-  // Navigation View State
-  const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'login' | 'register' | 'user-portal' | 'admin'>('home');
+  // Navigation View States
+  const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'auth' | 'user-portal' | 'admin'>('home');
+  const [isLoginMode, setIsLoginMode] = useState<boolean>(true); // Toggles login vs registration view cleanly
   const [userSubView, setUserSubView] = useState<'cart' | 'wishlist' | 'orders'>('cart');
   const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'customers' | 'uploader'>('fittings');
   
   const [products] = useState<Product[]>(INITIAL_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
-  // Interactive Global Shopping States (Cart & Wishlist)
+  // Customer State Containers
   const [cart, setCart] = useState<{product: Product, count: number}[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>(MOCK_ORDERS);
   const [checkoutStep, setCheckoutStep] = useState<'idle' | 'processing' | 'success'>('idle');
 
-  // Authentication States
+  // Unified Authenticational States
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -90,14 +90,14 @@ export default function App() {
   const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Bespoke Fitting States
+  // Fitting Parameters State
   const [clientName, setClientName] = useState('');
   const [email, setEmail] = useState('');
   const [bust, setBust] = useState('');
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
 
-  // New States for Product Creation panel
+  // Product Creator state hooks
   const [newProdName, setNewProdName] = useState('');
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdPrice, setNewProdPrice] = useState('');
@@ -107,14 +107,13 @@ export default function App() {
   const [imageString, setImageString] = useState('');
   const [uploadStatus, setUploadStatus] = useState('');
 
-  // Invoice view handler state
+  // Invoice State management
   const [activeInvoice, setActiveInvoice] = useState<Order | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setCurrentUser(parsedUser);
+      setCurrentUser(JSON.parse(savedUser));
     }
   }, []);
 
@@ -122,7 +121,7 @@ export default function App() {
     ? products 
     : products.filter(p => p.category === selectedCategory);
 
-  // Cart & Wishlist Mutators
+  // Cart & Wishlist Handlers
   const addToCart = (product: Product) => {
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
@@ -158,7 +157,6 @@ export default function App() {
     }, 1500);
   };
 
-  // Admin Status Update Actions
   const updateStatus = (orderId: string, nextStatus: Order['status']) => {
     setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
   };
@@ -255,7 +253,8 @@ export default function App() {
           <button onClick={() => setView('catalog')} className={`nav-btn ${view === 'catalog' ? 'active' : ''}`}>Collections</button>
           <button onClick={() => setView('bespoke')} className={`nav-btn ${view === 'bespoke' ? 'active' : ''}`}>Bespoke Fitting</button>
           
-          {currentUser && (
+          {/* CRITICAL FIX: Only customer roles see the shopping suite controls */}
+          {currentUser && currentUser.role !== 'admin' && (
             <button onClick={() => { setView('user-portal'); setUserSubView('cart'); }} className={`nav-btn ${view === 'user-portal' ? 'active' : ''}`}>
               My Shopping Suite ({cart.reduce((a,c)=>a+c.count, 0)}) 🛍️
             </button>
@@ -273,7 +272,7 @@ export default function App() {
               <button onClick={handleLogout} className="nav-btn auth-btn">Logout</button>
             </div>
           ) : (
-            <button onClick={() => { setAuthError(''); setView('login'); }} className={`nav-btn ${view === 'login' ? 'active' : ''}`}>Login</button>
+            <button onClick={() => { setAuthError(''); setIsLoginMode(true); setView('auth'); }} className={`nav-btn ${view === 'auth' ? 'active' : ''}`}>Login / Register</button>
           )}
         </nav>
       </header>
@@ -311,10 +310,13 @@ export default function App() {
                   <div className="product-info">
                     <h4 className="product-title">{p.name}</h4>
                     <span className="product-price">₹{p.price.toLocaleString('en-IN')}</span>
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                      <button onClick={() => addToCart(p)} className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>Add to Cart</button>
-                      <button onClick={() => addToWishlist(p)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>❤️ Wishlist</button>
-                    </div>
+                    {/* CRITICAL FIX: Hide addition handlers if logged in user is admin */}
+                    {currentUser?.role !== 'admin' && (
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                        <button onClick={() => addToCart(p)} className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>Add to Cart</button>
+                        <button onClick={() => addToWishlist(p)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>❤️ Wishlist</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -323,7 +325,7 @@ export default function App() {
         )}
 
         {/* --- CUSTOMER SHOPPING CONSOLE PORTAL --- */}
-        {view === 'user-portal' && (
+        {view === 'user-portal' && currentUser?.role !== 'admin' && (
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '30px' }}>
             <aside style={{ background: '#fcf8fb', padding: '20px', borderRadius: '8px' }}>
               <h4 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #ddd' }}>Shopping App</h4>
@@ -541,14 +543,36 @@ export default function App() {
           </div>
         )}
 
-        {view === 'login' && (
-          <div className="form-container">
-            <form onSubmit={handleLoginSubmit} className="bespoke-form" style={{ maxWidth: '450px', margin: '0 auto' }}>
-              <h3>Atelier Login</h3>
-              <input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Email Address" style={{ display:'block', width:'100%', padding:'8px', marginBottom:'10px' }} />
-              <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={{ display:'block', width:'100%', padding:'8px', marginBottom:'15px' }} />
-              <button type="submit" className="btn-submit">Log In</button>
-            </form>
+        {/* --- RESTORED AND INTEGRATED AUTH FORM (LOGIN/REGISTER CHANGER) --- */}
+        {view === 'auth' && (
+          <div className="form-container" style={{ maxWidth: '450px', margin: '40px auto', background: '#fff', padding: '30px', borderRadius: '8px', border: '1px solid #eee' }}>
+            {isLoginMode ? (
+              <form onSubmit={handleLoginSubmit} className="bespoke-form">
+                <h3 style={{ marginBottom: '20px', textAlign: 'center' }}>Atelier Secure Login</h3>
+                {authError && <p style={{ color: 'red', fontSize: '14px' }}>{authError}</p>}
+                <input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Email Address" style={{ display:'block', width:'100%', padding:'10px', marginBottom:'12px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={{ display:'block', width:'100%', padding:'10px', marginBottom:'20px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <button type="submit" className="btn-submit" style={{ width: '100%', padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Log In</button>
+                <p style={{ marginTop: '15px', textAlign: 'center', fontSize: '14px' }}>
+                  Don't have an account?{' '}
+                  <span onClick={() => { setIsLoginMode(false); setAuthError(''); }} style={{ color: '#d9534f', cursor: 'pointer', fontWeight: 'bold' }}>Create account here</span>
+                </p>
+              </form>
+            ) : (
+              <form onSubmit={handleRegisterSubmit} className="bespoke-form">
+                <h3 style={{ marginBottom: '20px', textAlign: 'center' }}>Create Client Profile</h3>
+                {authError && <p style={{ color: 'red', fontSize: '14px' }}>{authError}</p>}
+                <input required type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Full Name" style={{ display:'block', width:'100%', padding:'10px', marginBottom:'12px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Email Address" style={{ display:'block', width:'100%', padding:'10px', marginBottom:'12px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <input required type="text" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="Phone Number" style={{ display:'block', width:'100%', padding:'10px', marginBottom:'12px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={{ display:'block', width:'100%', padding:'10px', marginBottom:'20px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <button type="submit" className="btn-submit" style={{ width: '100%', padding: '10px', background: '#d9534f', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Register Account</button>
+                <p style={{ marginTop: '15px', textAlign: 'center', fontSize: '14px' }}>
+                  Already registered?{' '}
+                  <span onClick={() => { setIsLoginMode(true); setAuthError(''); }} style={{ color: '#000', cursor: 'pointer', fontWeight: 'bold' }}>Login here</span>
+                </p>
+              </form>
+            )}
           </div>
         )}
       </main>
