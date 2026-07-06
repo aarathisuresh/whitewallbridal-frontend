@@ -1,15 +1,13 @@
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
-import API from './api/axios'; 
+import API from './api/axios'; // Make sure this path correctly points to your axios.js file
 
-// A flexible product shape that works for both the hardcoded showcase items
-// and the real products coming back from MongoDB.
-interface DisplayProduct {
-  key: string;        // unique key for React (id or _id)
+interface Product {
+  id: number;
   name: string;
-  category: string;   // normalized to a readable name like "Sarees"
+  category: string;
   price: number;
   fabric: string;
-  image: string;      // normalized to a single image URL
+  image: string;
   description: string;
 }
 
@@ -20,10 +18,22 @@ interface User {
   role: string;
 }
 
-// Showcase items always shown at the top of the catalog.
-const INITIAL_PRODUCTS: DisplayProduct[] = [
+// Interface for expanded management records
+interface Order {
+  id: string;
+  clientName: string;
+  email: string;
+  items: string;
+  total: number;
+  status: 'Pending' | 'Pattern Cutting' | 'In Tailoring' | 'Shipped' | 'Delivered';
+  isCustom: boolean;
+  metrics?: string;
+  date: string;
+}
+
+const INITIAL_PRODUCTS: Product[] = [
   {
-    key: 'showcase-1',
+    id: 1,
     name: 'Amara Crimson Silk Bridal Saree',
     category: 'Sarees',
     price: 45000,
@@ -32,7 +42,7 @@ const INITIAL_PRODUCTS: DisplayProduct[] = [
     description: 'A breathtaking Banarasi silk masterpiece adorned with intricate golden zari work.'
   },
   {
-    key: 'showcase-2',
+    id: 2,
     name: 'Ivory Blossom Anarkali Kurti',
     category: 'Kurtis',
     price: 8500,
@@ -41,7 +51,7 @@ const INITIAL_PRODUCTS: DisplayProduct[] = [
     description: 'An elegant hand-embroidered silhouette radiating modern minimalism.'
   },
   {
-    key: 'showcase-3',
+    id: 3,
     name: 'Elysian Rose Wedding Gown',
     category: 'Dresses',
     price: 120000,
@@ -51,41 +61,28 @@ const INITIAL_PRODUCTS: DisplayProduct[] = [
   }
 ];
 
-// Converts a raw product document from MongoDB into the flat shape the UI needs.
-const normalizeDbProduct = (p: any): DisplayProduct => {
-  // category may be a populated object { _id, name } or just an id string
-  let categoryName = 'Uncategorized';
-  if (p.category && typeof p.category === 'object' && p.category.name) {
-    categoryName = p.category.name;
-  } else if (typeof p.category === 'string') {
-    categoryName = p.category;
-  }
-
-  // images is an array of { url, isMain }; pick the main one, else the first
-  let imageUrl = 'https://via.placeholder.com/600x800?text=No+Image';
-  if (Array.isArray(p.images) && p.images.length > 0) {
-    const mainImg = p.images.find((img: any) => img.isMain) || p.images[0];
-    if (mainImg && mainImg.url) imageUrl = mainImg.url;
-  }
-
-  return {
-    key: p._id || `db-${Math.random()}`,
-    name: p.name || 'Untitled Product',
-    category: categoryName,
-    price: typeof p.price === 'number' ? p.price : Number(p.price) || 0,
-    fabric: p.fabric || 'Premium Fabric',
-    image: imageUrl,
-    description: p.description || ''
-  };
-};
+const MOCK_ORDERS: Order[] = [
+  { id: 'WWB-9821', clientName: 'Aarathi Suresh', email: 'aarathisuresh93@gmail.com', items: 'Amara Crimson Silk Saree', total: 45000, status: 'Pending', isCustom: true, metrics: 'B:34 W:28 H:38', date: '2026-07-02' },
+  { id: 'WWB-9754', clientName: 'Anjali Sharma', email: 'anjali@example.com', items: 'Elysian Rose Wedding Gown', total: 120000, status: 'In Tailoring', isCustom: true, metrics: 'B:36 W:30 H:40', date: '2026-06-28' },
+  { id: 'WWB-9610', clientName: 'Meera Nair', email: 'meera@nair.com', items: 'Ivory Blossom Anarkali Kurti', total: 8500, status: 'Shipped', isCustom: false, date: '2026-06-15' }
+];
 
 export default function App() {
   // Navigation View State
-  const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'login' | 'register' | 'admin'>('home');
-  const [dbProducts, setDbProducts] = useState<DisplayProduct[]>([]);
+  const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'login' | 'register' | 'user-portal' | 'admin'>('home');
+  const [userSubView, setUserSubView] = useState<'cart' | 'wishlist' | 'orders'>('cart');
+  const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'customers' | 'uploader'>('fittings');
+  
+  const [products] = useState<Product[]>(INITIAL_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
-  
+  // Interactive Global Shopping States (Cart & Wishlist)
+  const [cart, setCart] = useState<{product: Product, count: number}[]>([]);
+  const [wishlist, setWishlist] = useState<Product[]>([]);
+  const [ordersList, setOrdersList] = useState<Order[]>(MOCK_ORDERS);
+  const [checkoutStep, setCheckoutStep] = useState<'idle' | 'processing' | 'success'>('idle');
+
+  // Authentication States
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -93,81 +90,93 @@ export default function App() {
   const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState('');
 
- 
+  // Bespoke Fitting States
   const [clientName, setClientName] = useState('');
   const [email, setEmail] = useState('');
   const [bust, setBust] = useState('');
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
 
-  
+  // New States for Product Creation panel
   const [newProdName, setNewProdName] = useState('');
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdPrice, setNewProdPrice] = useState('');
-  const [newProdCategory, setNewProdCategory] = useState(''); // MongoDB Category ObjectId string
+  const [newProdCategory, setNewProdCategory] = useState(''); 
   const [newProdFabric, setNewProdFabric] = useState('');
   const [newProdCare, setNewProdCare] = useState('');
   const [imageString, setImageString] = useState('');
   const [uploadStatus, setUploadStatus] = useState('');
 
-  // Fetch products from the backend so newly published items appear in the catalog.
-  const fetchProducts = async () => {
-    try {
-      const response = await API.get('/products');
-      if (response.data.success && Array.isArray(response.data.data)) {
-        setDbProducts(response.data.data.map(normalizeDbProduct));
-      }
-    } catch (err) {
-      console.error('Failed to load products from server:', err);
-    }
-  };
+  // Invoice view handler state
+  const [activeInvoice, setActiveInvoice] = useState<Order | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
       setCurrentUser(parsedUser);
-      
-      if (parsedUser.role === 'admin') {
-        setView('admin');
-      } else {
-        setView('home');
-      }
-    } else {
-      setView('home');
     }
-
-    // Load live products on first render.
-    fetchProducts();
   }, []);
 
-  // Combine showcase products with the live database products.
-  const allProducts = [...INITIAL_PRODUCTS, ...dbProducts];
-
   const filteredProducts = selectedCategory === 'All' 
-    ? allProducts 
-    : allProducts.filter(p => p.category === selectedCategory);
+    ? products 
+    : products.filter(p => p.category === selectedCategory);
 
-  
+  // Cart & Wishlist Mutators
+  const addToCart = (product: Product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === product.id);
+      if (existing) return prev.map(item => item.product.id === product.id ? {...item, count: item.count + 1} : item);
+      return [...prev, { product, count: 1 }];
+    });
+    alert(`Added ${product.name} to Cart!`);
+  };
+
+  const addToWishlist = (product: Product) => {
+    if (!wishlist.find(p => p.id === product.id)) {
+      setWishlist([...wishlist, product]);
+      alert(`Saved ${product.name} to Wishlist!`);
+    }
+  };
+
+  const runCheckout = () => {
+    setCheckoutStep('processing');
+    setTimeout(() => {
+      const newOrder: Order = {
+        id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
+        clientName: currentUser?.name || 'Guest Client',
+        email: currentUser?.email || 'guest@retail.com',
+        items: cart.map(c => `${c.product.name} (x${c.count})`).join(', '),
+        total: cart.reduce((acc, c) => acc + (c.product.price * c.count), 0),
+        status: 'Pending',
+        isCustom: false,
+        date: new Date().toISOString().split('T')[0]
+      };
+      setOrdersList([newOrder, ...ordersList]);
+      setCart([]);
+      setCheckoutStep('success');
+    }, 1500);
+  };
+
+  // Admin Status Update Actions
+  const updateStatus = (orderId: string, nextStatus: Order['status']) => {
+    setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
+  };
+
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageString(reader.result as string);
-      };
+      reader.onloadend = () => setImageString(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
 
-  
   const handleProductSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setUploadStatus('Uploading new designer asset details...');
-    
     try {
       const token = localStorage.getItem('token');
-      
       const payload = {
         name: newProdName,
         description: newProdDesc,
@@ -180,23 +189,12 @@ export default function App() {
       };
 
       const response = await API.post('/products', payload, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` }
       });
 
       if (response.data.success) {
         setUploadStatus('🎉 Product uploaded live and successfully committed to Atlas database!');
-        setNewProdName('');
-        setNewProdDesc('');
-        setNewProdPrice('');
-        setNewProdCategory('');
-        setNewProdFabric('');
-        setNewProdCare('');
-        setImageString('');
-
-        // Refresh the catalog so the new product shows up immediately.
-        fetchProducts();
+        setNewProdName(''); setNewProdDesc(''); setNewProdPrice(''); setNewProdCategory(''); setNewProdFabric(''); setNewProdCare(''); setImageString('');
       }
     } catch (err: any) {
       setUploadStatus(`❌ Server Rejected Upload: ${err.response?.data?.message || err.message}`);
@@ -208,20 +206,12 @@ export default function App() {
     setAuthError('');
     try {
       const response = await API.post('/auth/login', { email: authEmail, password: authPassword });
-      
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         setCurrentUser(response.data.user);
-        
-        setAuthEmail('');
-        setAuthPassword('');
-        
-        if (response.data.user.role === 'admin') {
-          setView('admin');
-        } else {
-          setView('home');
-        }
+        setAuthEmail(''); setAuthPassword('');
+        setView(response.data.user.role === 'admin' ? 'admin' : 'home');
       }
     } catch (err: any) {
       setAuthError(err.response?.data?.message || 'Invalid credentials. Please try again.');
@@ -233,21 +223,13 @@ export default function App() {
     setAuthError('');
     try {
       const response = await API.post('/auth/register', {
-        name: authName,
-        email: authEmail,
-        password: authPassword,
-        phone: authPhone
+        name: authName, email: authEmail, password: authPassword, phone: authPhone
       });
-
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         setCurrentUser(response.data.user);
-
-        setAuthName('');
-        setAuthEmail('');
-        setAuthPassword('');
-        setAuthPhone('');
+        setAuthName(''); setAuthEmail(''); setAuthPassword(''); setAuthPhone('');
         setView('home');
       }
     } catch (err: any) {
@@ -262,13 +244,6 @@ export default function App() {
     setView('home');
   };
 
-  const handleBespokeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert(`Thank you ${clientName}! Dimensions logged.`);
-    setClientName(''); setEmail(''); setBust(''); setWaist(''); setHips('');
-    setView('home');
-  };
-
   return (
     <div className="app-container">
       <header className="navbar">
@@ -280,9 +255,15 @@ export default function App() {
           <button onClick={() => setView('catalog')} className={`nav-btn ${view === 'catalog' ? 'active' : ''}`}>Collections</button>
           <button onClick={() => setView('bespoke')} className={`nav-btn ${view === 'bespoke' ? 'active' : ''}`}>Bespoke Fitting</button>
           
+          {currentUser && (
+            <button onClick={() => { setView('user-portal'); setUserSubView('cart'); }} className={`nav-btn ${view === 'user-portal' ? 'active' : ''}`}>
+              My Shopping Suite ({cart.reduce((a,c)=>a+c.count, 0)}) 🛍️
+            </button>
+          )}
+
           {currentUser && currentUser.role === 'admin' && (
             <button onClick={() => setView('admin')} className={`nav-btn ${view === 'admin' ? 'active' : ''}`} style={{ color: '#d9534f', fontWeight: 'bold' }}>
-              Admin Dashboard ⚙️
+              Atelier Management ⚙️
             </button>
           )}
           
@@ -299,74 +280,40 @@ export default function App() {
 
       <main className="main-content">
         {view === 'home' && (
-          <div>
-            <section className="hero-section">
-              <span className="hero-subtitle">Haute Couture Atelier</span>
-              <h2 className="hero-title">Bespoke Bridal Styling & Luxury Collections</h2>
-              <p className="hero-desc">
-                Discover clean silhouettes, handcrafted premium fabrics, and customizable sizing tailored just for you.
-              </p>
-              <div className="hero-actions">
-                <button onClick={() => setView('catalog')} className="btn-primary">View Catalog</button>
-                <button onClick={() => setView('bespoke')} className="btn-secondary">Book Fitting</button>
-              </div>
-            </section>
-
-            <section className="features-grid">
-              <div className="feature-card">
-                <h4>Premium Fabrics</h4>
-                <p>Handpicked pure silk, delicate tulle, and heritage Banarasi weaves.</p>
-              </div>
-              <div className="feature-card">
-                <h4>Custom Alterations</h4>
-                <p>Provide your unique parameters for an anatomical flawless fit.</p>
-              </div>
-              <div className="feature-card">
-                <h4>Atelier Care</h4>
-                <p>Direct updates on your specifications through your design process.</p>
-              </div>
-            </section>
-          </div>
+          <section className="hero-section">
+            <span className="hero-subtitle">Haute Couture Atelier</span>
+            <h2 className="hero-title">Bespoke Bridal Styling & Luxury Collections</h2>
+            <p className="hero-desc">Discover clean silhouettes, handcrafted premium fabrics, and customizable sizing tailored just for you.</p>
+            <div className="hero-actions">
+              <button onClick={() => setView('catalog')} className="btn-primary">View Catalog</button>
+              <button onClick={() => setView('bespoke')} className="btn-secondary">Book Fitting</button>
+            </div>
+          </section>
         )}
 
         {view === 'catalog' && (
           <div className="catalog-container">
             <div className="catalog-header">
-              <div>
-                <h3>The Master Collections</h3>
-                <p>Filter through our luxury styles and fabrics.</p>
-              </div>
+              <h3>The Master Collections</h3>
               <div className="filter-pills">
                 {['All', 'Sarees', 'Kurtis', 'Dresses'].map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`pill ${selectedCategory === cat ? 'active' : ''}`}
-                  >
-                    {cat}
-                  </button>
+                  <button key={cat} onClick={() => setSelectedCategory(cat)} className={`pill ${selectedCategory === cat ? 'active' : ''}`}>{cat}</button>
                 ))}
               </div>
             </div>
 
             <div className="products-grid">
               {filteredProducts.map(p => (
-                <div key={p.key} className="product-card">
+                <div key={p.id} className="product-card">
                   <div className="product-img-wrapper">
                     <img src={p.image} alt={p.name} />
-                    <span className="product-badge">{p.fabric}</span>
                   </div>
                   <div className="product-info">
-                    <div>
-                      <span className="product-cat">{p.category}</span>
-                      <h4 className="product-title">{p.name}</h4>
-                      <p className="product-desc">{p.description}</p>
-                    </div>
-                    <div className="product-footer">
-                      <span className="product-price">₹{p.price.toLocaleString('en-IN')}</span>
-                      <button onClick={() => setView('bespoke')} className="product-link">
-                        Order Custom Fit &rarr;
-                      </button>
+                    <h4 className="product-title">{p.name}</h4>
+                    <span className="product-price">₹{p.price.toLocaleString('en-IN')}</span>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                      <button onClick={() => addToCart(p)} className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>Add to Cart</button>
+                      <button onClick={() => addToWishlist(p)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>❤️ Wishlist</button>
                     </div>
                   </div>
                 </div>
@@ -375,206 +322,236 @@ export default function App() {
           </div>
         )}
 
-        {view === 'bespoke' && (
-          <div className="form-container">
-            <div className="form-header">
-              <span>Tailoring Protocol</span>
-              <h3>Bespoke Design Input</h3>
-              <p>Log your raw fitting dimensions below to queue production files.</p>
-            </div>
+        {/* --- CUSTOMER SHOPPING CONSOLE PORTAL --- */}
+        {view === 'user-portal' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '30px' }}>
+            <aside style={{ background: '#fcf8fb', padding: '20px', borderRadius: '8px' }}>
+              <h4 style={{ margin: '0 0 15px 0', borderBottom: '1px solid #ddd' }}>Shopping App</h4>
+              <button onClick={() => setUserSubView('cart')} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', border: 'none', background: userSubView === 'cart' ? '#fff' : 'transparent', fontWeight: userSubView === 'cart' ? 'bold' : 'normal', cursor: 'pointer' }}>🛒 Shopping Cart</button>
+              <button onClick={() => setUserSubView('wishlist')} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', border: 'none', background: userSubView === 'wishlist' ? '#fff' : 'transparent', fontWeight: userSubView === 'wishlist' ? 'bold' : 'normal', cursor: 'pointer' }}>💖 My Wishlist</button>
+              <button onClick={() => setUserSubView('orders')} style={{ display: 'block', width: '100%', padding: '10px', textAlign: 'left', border: 'none', background: userSubView === 'orders' ? '#fff' : 'transparent', fontWeight: userSubView === 'orders' ? 'bold' : 'normal', cursor: 'pointer' }}>📦 History & Tracking</button>
+            </aside>
 
-            <form onSubmit={handleBespokeSubmit} className="bespoke-form">
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Full Name</label>
-                  <input required type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g., Anjali Sharma" />
+            <section style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #eee' }}>
+              {userSubView === 'cart' && (
+                <div>
+                  <h3>Your Selected Cart Items</h3>
+                  {cart.length === 0 ? <p>Your shopping cart is currently empty.</p> : (
+                    <div>
+                      {cart.map(item => (
+                        <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #eee' }}>
+                          <div style={{ flex: 1 }}><b>{item.product.name}</b> <br/> Quantities: {item.count}</div>
+                          <div><b>₹{(item.product.price * item.count).toLocaleString('en-IN')}</b></div>
+                        </div>
+                      ))}
+                      <div style={{ textAlign: 'right', marginTop: '20px' }}>
+                        <h4>Total: ₹{cart.reduce((acc, c) => acc + (c.product.price * c.count), 0).toLocaleString('en-IN')}</h4>
+                        {checkoutStep === 'idle' && <button onClick={runCheckout} className="btn-primary">Proceed to Secure Checkout</button>}
+                        {checkoutStep === 'processing' && <p>Processing secure card payment pathways...</p>}
+                        {checkoutStep === 'success' && <p style={{ color: 'green', fontWeight: 'bold' }}>🎉 Order Placed Successfully! Checked out into tracking queue.</p>}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="form-group">
-                  <label>Contact Email</label>
-                  <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="e.g., anjali@example.com" />
-                </div>
-              </div>
+              )}
 
-              <div className="metrics-section">
-                <div className="metrics-title">Anatomical Metrics (Inches)</div>
-                <div className="form-grid-3">
-                  <div className="form-group">
-                    <label style={{ textAlign: 'center' }}>Bust</label>
-                    <input className="text-center-input" required type="number" value={bust} onChange={e => setBust(e.target.value)} placeholder="34" />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ textAlign: 'center' }}>Waist Line</label>
-                    <input className="text-center-input" required type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="28" />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ textAlign: 'center' }}>Hips Span</label>
-                    <input className="text-center-input" required type="number" value={hips} onChange={e => setHips(e.target.value)} placeholder="38" />
-                  </div>
+              {userSubView === 'wishlist' && (
+                <div>
+                  <h3>Your Wishlist Items</h3>
+                  {wishlist.length === 0 ? <p>No designs saved to your wishlist yet.</p> : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                      {wishlist.map(p => (
+                        <div key={p.id} style={{ border: '1px solid #eee', padding: '10px', borderRadius: '4px' }}>
+                          <h5>{p.name}</h5>
+                          <button onClick={() => addToCart(p)} className="btn-primary" style={{ padding: '4px 8px', fontSize: '12px' }}>Move to Cart</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
-              <button type="submit" className="btn-submit">
-                Submit Atelier Specifications
-              </button>
-            </form>
+              {userSubView === 'orders' && (
+                <div>
+                  <h3>Order History & Real-Time Tracking</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
+                        <th style={{ padding: '8px' }}>Order ID</th>
+                        <th style={{ padding: '8px' }}>Items</th>
+                        <th style={{ padding: '8px' }}>Total</th>
+                        <th style={{ padding: '8px' }}>Tracking Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ordersList.filter(o => o.email === currentUser?.email).map(o => (
+                        <tr key={o.id} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '8px' }}>{o.id}</td>
+                          <td style={{ padding: '8px' }}>{o.items}</td>
+                          <td style={{ padding: '8px' }}>₹{o.total.toLocaleString('en-IN')}</td>
+                          <td style={{ padding: '8px' }}><span style={{ padding: '2px 6px', background: '#eaeaea', borderRadius: '4px', fontSize: '12px' }}>{o.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           </div>
         )}
 
-        
+        {/* --- EXPANDED MANAGEMENT CONTROL SYSTEM (ADMIN) --- */}
         {view === 'admin' && currentUser && currentUser.role === 'admin' && (
-          <div className="form-container" style={{ maxWidth: '1000px' }}>
-            <div className="form-header" style={{ borderBottom: '2px solid #eee', paddingBottom: '15px' }}>
-              <span style={{ background: '#d9534f', color: '#fff', padding: '3px 8px', borderRadius: '4px', fontSize: '12px' }}>Atelier Executive Rights</span>
-              <h3>Bespoke Orders & Fitting Management</h3>
-              <p>Review customer parameters, metrics submissions, and update processing statuses.</p>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', margin: '20px 0' }}>
-              <div style={{ background: '#fcf8fb', padding: '15px', borderRadius: '6px', borderLeft: '4px solid #b392ac' }}>
-                <h5 style={{ margin: 0, color: '#666' }}>Pending Fittings</h5>
-                <h2 style={{ margin: '5px 0 0 0' }}>12 Orders</h2>
-              </div>
-              <div style={{ background: '#fcf8fb', padding: '15px', borderRadius: '6px', borderLeft: '4px solid #5cb85c' }}>
-                <h5 style={{ margin: 0, color: '#666' }}>Completed Appts</h5>
-                <h2 style={{ margin: '5px 0 0 0' }}>48 Checked</h2>
-              </div>
-              <div style={{ background: '#fcf8fb', padding: '15px', borderRadius: '6px', borderLeft: '4px solid #f0ad4e' }}>
-                <h5 style={{ margin: 0, color: '#666' }}>In Tailoring Phase</h5>
-                <h2 style={{ margin: '5px 0 0 0' }}>6 Designs</h2>
-              </div>
+          <div className="form-container" style={{ maxWidth: '1100px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', background: '#f5f5f5', padding: '10px', borderRadius: '6px' }}>
+              <button onClick={() => setAdminSubView('fittings')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'fittings' ? '#000' : 'transparent', color: adminSubView === 'fittings' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Bespoke Custom Fits</button>
+              <button onClick={() => setAdminSubView('orders')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'orders' ? '#000' : 'transparent', color: adminSubView === 'orders' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Order Management</button>
+              <button onClick={() => setAdminSubView('customers')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'customers' ? '#000' : 'transparent', color: adminSubView === 'customers' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Customer Profiles</button>
+              <button onClick={() => setAdminSubView('uploader')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'uploader' ? '#000' : 'transparent', color: adminSubView === 'uploader' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Product Asset Uploader</button>
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '25px', fontSize: '14px' }}>
-              <thead>
-                <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-                  <th style={{ padding: '10px' }}>Client</th>
-                  <th style={{ padding: '10px' }}>Fabric & Style Request</th>
-                  <th style={{ padding: '10px' }}>Bust / Waist / Hips</th>
-                  <th style={{ padding: '10px' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '12px 10px' }}><b>Aarathi Suresh</b><br/><span style={{fontSize:'12px', color:'#777'}}>aarathisuresh93@gmail.com</span></td>
-                  <td>Amara Crimson Silk Saree</td>
-                  <td>34" / 28" / 38"</td>
-                  <td><span style={{ color: '#f0ad4e', fontWeight: 'bold' }}>Pending Queue</span></td>
-                </tr>
-                <tr style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '12px 10px' }}><b>Anjali Sharma</b><br/><span style={{fontSize:'12px', color:'#777'}}>anjali@example.com</span></td>
-                  <td>Elysian Rose Wedding Gown</td>
-                  <td>36" / 30" / 40"</td>
-                  <td><span style={{ color: '#5cb85c', fontWeight: 'bold' }}>Pattern Cut Complete</span></td>
-                </tr>
-              </tbody>
-            </table>
+            {adminSubView === 'fittings' && (
+              <div>
+                <h3>Manage Custom Fitting Submissions</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#eee', textAlign: 'left' }}>
+                      <th style={{ padding: '10px' }}>Client</th>
+                      <th style={{ padding: '10px' }}>Allocated Dimensions</th>
+                      <th style={{ padding: '10px' }}>Type</th>
+                      <th style={{ padding: '10px' }}>Status Execution</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordersList.filter(o => o.isCustom).map(o => (
+                      <tr key={o.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '10px' }}><b>{o.clientName}</b></td>
+                        <td>{o.metrics}</td>
+                        <td><span style={{ color: 'purple' }}>Bespoke Project</span></td>
+                        <td>
+                          <select value={o.status} onChange={(e) => updateStatus(o.id, e.target.value as any)}>
+                            <option value="Pending">Pending Queue</option>
+                            <option value="Pattern Cutting">Pattern Cutting</option>
+                            <option value="In Tailoring">In Tailoring</option>
+                            <option value="Shipped">Shipped</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-            
-            <div style={{ marginTop: '50px', paddingTop: '30px', borderTop: '2px dashed #ccc' }}>
-              <h3 style={{ margin: '0 0 5px 0' }}>Add Live Product Asset</h3>
-              <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>Fill out structural parameters to directly commit items to MongoDB cloud collections.</p>
-              
-              {uploadStatus && <div style={{ background: '#f8f9fa', padding: '12px', borderRadius: '4px', marginBottom: '15px', fontWeight: 'bold', borderLeft: '4px solid #000' }}>{uploadStatus}</div>}
-              
-              <form onSubmit={handleProductSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                <div className="form-group">
-                  <label>Product Name</label>
-                  <input required type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="e.g., Premium Ivory Lace Veil" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
-                </div>
-                <div className="form-group">
-                  <label>Price (INR)</label>
-                  <input required type="number" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="e.g., 12500" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
-                </div>
-                <div className="form-group">
-                  <label>Category ID (From MongoDB Object Collection)</label>
-                  <input required type="text" value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} placeholder="Paste MongoDB ID string" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
-                </div>
-                <div className="form-group">
-                  <label>Fabric Matrix</label>
-                  <input type="text" value={newProdFabric} onChange={e => setNewProdFabric(e.target.value)} placeholder="e.g., Silk Organza" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
-                </div>
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <label>Product Design Description</label>
-                  <textarea required value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} placeholder="Describe custom attributes, textures, styling silhouettes..." style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px', height: '100px' }} />
-                </div>
-                <div className="form-group">
-                  <label>Care Instructions</label>
-                  <input type="text" value={newProdCare} onChange={e => setNewProdCare(e.target.value)} placeholder="e.g., Dry Clean Only" style={{ width: '100%', padding: '8px', border: '1px solid #ccc', borderRadius: '4px' }} />
-                </div>
-                <div className="form-group">
-                  <label>Upload Asset Graphic File</label>
-                  <input required type="file" accept="image/*" onChange={handleImageUpload} style={{ width: '100%', padding: '5px' }} />
-                </div>
-                <button type="submit" className="btn-submit" style={{ gridColumn: 'span 2', background: '#000', color: '#fff', padding: '12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' }}>
-                  Publish & Deploy Product To Shop
-                </button>
-              </form>
+            {adminSubView === 'orders' && (
+              <div>
+                <h3>Global Shop Order Matrix</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#eee', textAlign: 'left' }}>
+                      <th style={{ padding: '10px' }}>Order ID</th>
+                      <th style={{ padding: '10px' }}>Products Purchased</th>
+                      <th style={{ padding: '10px' }}>Total Invoice Bill</th>
+                      <th style={{ padding: '10px' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordersList.map(o => (
+                      <tr key={o.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '10px' }}>{o.id}</td>
+                        <td>{o.items}</td>
+                        <td>₹{o.total.toLocaleString('en-IN')}</td>
+                        <td>
+                          <button onClick={() => setActiveInvoice(o)} style={{ padding: '4px 8px', background: '#5bc0de', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📄 Generate Invoice</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {adminSubView === 'customers' && (
+              <div>
+                <h3>Customer Directory Management</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#eee', textAlign: 'left' }}>
+                      <th style={{ padding: '10px' }}>Profile Name</th>
+                      <th style={{ padding: '10px' }}>Contact Email</th>
+                      <th style={{ padding: '10px' }}>System Clearance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '10px' }}>Aarathi Suresh</td>
+                      <td>aarathisuresh93@gmail.com</td>
+                      <td><span style={{ color: 'green' }}>Verified Client</span></td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '10px' }}>Anjali Sharma</td>
+                      <td>anjali@example.com</td>
+                      <td><span style={{ color: 'green' }}>Verified Client</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {adminSubView === 'uploader' && (
+              <div style={{ background: '#fafafa', padding: '20px', borderRadius: '8px' }}>
+                <h3>Add Live Product Asset</h3>
+                <form onSubmit={handleProductSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <input required type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="Product Name" style={{ padding: '8px' }} />
+                  <input required type="number" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="Price (INR)" style={{ padding: '8px' }} />
+                  <input required type="text" value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} placeholder="Category MongoDB ObjectId String" style={{ padding: '8px', gridColumn: 'span 2' }} />
+                  <textarea required value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} placeholder="Design Description..." style={{ padding: '8px', gridColumn: 'span 2', height: '60px' }} />
+                  <input type="file" accept="image/*" onChange={handleImageUpload} style={{ gridColumn: 'span 2' }} />
+                  <button type="submit" className="btn-submit" style={{ gridColumn: 'span 2', background: '#000', color: '#fff', padding: '10px' }}>Publish To MongoDB Atlas</button>
+                </form>
+                {uploadStatus && <p>{uploadStatus}</p>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- DYNAMIC INVOICE MODAL POPUP --- */}
+        {activeInvoice && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+            <div style={{ background: '#fff', padding: '30px', borderRadius: '8px', width: '500px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #ddd', paddingBottom: '10px' }}>
+                <h2>WHITE WALL BRIDAL</h2>
+                <p>Official Billing Statement</p>
+              </div>
+              <div style={{ margin: '20px 0' }}>
+                <p><b>Invoice Reference:</b> {activeInvoice.id}</p>
+                <p><b>Date Issued:</b> {activeInvoice.date}</p>
+                <p><b>Billed To:</b> {activeInvoice.clientName} ({activeInvoice.email})</p>
+                <hr style={{ border: '0', borderTop: '1px dashed #ccc' }} />
+                <p><b>Line Items Summary:</b><br/> {activeInvoice.items}</p>
+                {activeInvoice.metrics && <p><b>Anatomical Profile:</b> {activeInvoice.metrics}</p>}
+                <hr style={{ border: '0', borderTop: '1px dashed #ccc' }} />
+                <h3>Total Amount Due: ₹{activeInvoice.total.toLocaleString('en-IN')}</h3>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <button onClick={() => window.print()} style={{ padding: '6px 12px', marginRight: '10px', background: '#5cb85c', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Print / Save PDF</button>
+                <button onClick={() => setActiveInvoice(null)} style={{ padding: '6px 12px', background: '#d9534f', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Close</button>
+              </div>
             </div>
           </div>
         )}
 
         {view === 'login' && (
           <div className="form-container">
-            <div className="form-header">
-              <span>Secure Access</span>
-              <h3>Atelier Login</h3>
-              <p>Sign in to review custom parameters and track design progress.</p>
-            </div>
             <form onSubmit={handleLoginSubmit} className="bespoke-form" style={{ maxWidth: '450px', margin: '0 auto' }}>
-              {authError && <div className="error-message" style={{ color: '#d9534f', marginBottom: '15px', fontWeight: 'bold' }}>{authError}</div>}
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <label>Email Address</label>
-                <input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="yourname@example.com" />
-              </div>
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label>Password</label>
-                <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="••••••••" />
-              </div>
+              <h3>Atelier Login</h3>
+              <input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Email Address" style={{ display:'block', width:'100%', padding:'8px', marginBottom:'10px' }} />
+              <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={{ display:'block', width:'100%', padding:'8px', marginBottom:'15px' }} />
               <button type="submit" className="btn-submit">Log In</button>
-              <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px' }}>
-                New to the Atelier? <span onClick={() => { setAuthError(''); setView('register'); }} style={{ color: '#b392ac', cursor: 'pointer', textDecoration: 'underline' }}>Create an Account</span>
-              </p>
-            </form>
-          </div>
-        )}
-
-        {view === 'register' && (
-          <div className="form-container">
-            <div className="form-header">
-              <span>Registration Protocol</span>
-              <h3>Create Atelier Profile</h3>
-              <p>Join the boutique platform to queue orders and log fittings.</p>
-            </div>
-            <form onSubmit={handleRegisterSubmit} className="bespoke-form" style={{ maxWidth: '450px', margin: '0 auto' }}>
-              {authError && <div className="error-message" style={{ color: '#d9534f', marginBottom: '15px', fontWeight: 'bold' }}>{authError}</div>}
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <label>Full Name</label>
-                <input required type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Anjali Sharma" />
-              </div>
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <label>Email Address</label>
-                <input required type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="anjali@example.com" />
-              </div>
-              <div className="form-group" style={{ marginBottom: '15px' }}>
-                <label>Phone Number (Optional)</label>
-                <input type="text" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
-              </div>
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label>Password</label>
-                <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Min 6 characters" />
-              </div>
-              <button type="submit" className="btn-submit">Register Profile</button>
-              <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px' }}>
-                Already registered? <span onClick={() => { setAuthError(''); setView('login'); }} style={{ color: '#b392ac', cursor: 'pointer', textDecoration: 'underline' }}>Login here</span>
-              </p>
             </form>
           </div>
         )}
       </main>
-
-      <footer className="footer">
-        &copy; 2026 White Wall Bridal Management Console. All Rights Reserved.
-      </footer>
     </div>
   );
 }
