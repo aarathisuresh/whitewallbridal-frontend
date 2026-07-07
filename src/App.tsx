@@ -123,22 +123,22 @@ export default function App() {
     fetchProductsFromDatabase();
   }, []);
 
-  // Fetch products from database
+  // Fetch products from database - FIXED
   const fetchProductsFromDatabase = async () => {
     setLoadingProducts(true);
     try {
       const response = await API.get('/products');
       if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
         // Map database products to our Product interface
-        const dbProducts: Product[] = response.data.data.map((p: any, idx: number) => ({
-          id: idx + 1,
-          _id: p._id || p.id,
+        const dbProducts: Product[] = response.data.data.map((p: any) => ({
+          id: undefined,
+          _id: p._id,
           name: p.name,
-          category: p.category,
+          category: p.category?.name || p.category, // Extract category NAME, not the whole object
           price: p.price,
           fabric: p.fabric,
           materialType: p.materialType || p.material_type || '',
-          image: p.image || p.images?.[0]?.url || '',
+          image: p.images?.[0]?.url || '',
           description: p.description
         }));
         // Merge with initial products (avoid duplicates)
@@ -156,31 +156,33 @@ export default function App() {
     ? products 
     : products.filter(p => p.category === selectedCategory);
 
-  // Cart & Wishlist Handlers
+  // Cart & Wishlist Handlers - FIXED
   const addToCart = (product: Product) => {
     setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
-      if (existing) return prev.map(item => item.product.id === product.id ? {...item, count: item.count + 1} : item);
+      const productKey = product._id || product.id;
+      const existing = prev.find(item => (item.product._id || item.product.id) === productKey);
+      if (existing) return prev.map(item => (item.product._id || item.product.id) === productKey ? {...item, count: item.count + 1} : item);
       return [...prev, { product, count: 1 }];
     });
     alert(`Added ${product.name} to Cart!`);
   };
 
-  const removeFromCart = (productId: number | undefined) => {
-    setCart(prev => prev.filter(item => item.product.id !== productId));
+  const removeFromCart = (productId: string | number | undefined) => {
+    setCart(prev => prev.filter(item => (item.product._id || item.product.id) !== productId));
     alert('Item removed from cart');
   };
 
-  const updateCartQuantity = (productId: number | undefined, newCount: number) => {
+  const updateCartQuantity = (productId: string | number | undefined, newCount: number) => {
     if (newCount <= 0) {
       removeFromCart(productId);
     } else {
-      setCart(prev => prev.map(item => item.product.id === productId ? {...item, count: newCount} : item));
+      setCart(prev => prev.map(item => (item.product._id || item.product.id) === productId ? {...item, count: newCount} : item));
     }
   };
 
   const addToWishlist = (product: Product) => {
-    if (!wishlist.find(p => p.id === product.id)) {
+    const productKey = product._id || product.id;
+    if (!wishlist.find(p => (p._id || p.id) === productKey)) {
       setWishlist([...wishlist, product]);
       alert(`Saved ${product.name} to Wishlist!`);
     }
@@ -244,19 +246,8 @@ export default function App() {
       if (response.data.success) {
         setUploadStatus('🎉 Product published successfully and added to database!');
         
-        // Add the new product to local state
-        const newProduct: Product = {
-          id: products.length + 1,
-          _id: response.data.data?._id,
-          name: newProdName,
-          description: newProdDesc,
-          price: Number(newProdPrice),
-          category: newProdCategory,
-          fabric: newProdFabric,
-          materialType: newProdMaterial,
-          image: imageString
-        };
-        setProducts(prev => [newProduct, ...prev]);
+        // Refresh products from database instead of manually adding
+        await fetchProductsFromDatabase();
         
         // Reset form
         setNewProdName('');
@@ -320,6 +311,29 @@ export default function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setCurrentUser(null);
+    setView('home');
+  };
+
+  const handleBespokeSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const newOrder: Order = {
+      id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
+      clientName,
+      email,
+      items: 'Custom Bespoke Commission',
+      total: 0,
+      status: 'Pending',
+      isCustom: true,
+      metrics: `B:${bust} W:${waist} H:${hips}`,
+      date: new Date().toISOString().split('T')[0],
+    };
+    setOrdersList([newOrder, ...ordersList]);
+    setClientName('');
+    setEmail('');
+    setBust('');
+    setWaist('');
+    setHips('');
+    alert('Your bespoke fitting request has been submitted! Our atelier will reach out with a quote.');
     setView('home');
   };
 
@@ -392,7 +406,7 @@ export default function App() {
                 <p>No products in this category.</p>
               ) : (
                 filteredProducts.map(p => (
-                  <div key={p.id || p._id} className="product-card">
+                  <div key={p._id || p.id} className="product-card">
                     <div className="product-img-wrapper">
                       <img src={p.image} alt={p.name} />
                     </div>
@@ -414,6 +428,29 @@ export default function App() {
           </div>
         )}
 
+        {/* --- BESPOKE FITTING PAGE --- */}
+        {view === 'bespoke' && (
+          <div className="form-container" style={{ maxWidth: '520px', margin: '40px auto', background: '#fff', padding: '30px', borderRadius: '8px', border: '1px solid #eee' }}>
+            <span className="hero-subtitle">Made to Measure</span>
+            <h3 style={{ margin: '10px 0 5px 0' }}>Book a Bespoke Fitting</h3>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+              Share your measurements and our atelier will craft a piece tailored precisely to you.
+            </p>
+            <form onSubmit={handleBespokeSubmit} className="bespoke-form">
+              <input required type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full Name" style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }} />
+              <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email Address" style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+                <input required type="number" value={bust} onChange={e => setBust(e.target.value)} placeholder="Bust (in)" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <input required type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="Waist (in)" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <input required type="number" value={hips} onChange={e => setHips(e.target.value)} placeholder="Hips (in)" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
+              </div>
+              <button type="submit" className="btn-submit" style={{ width: '100%', padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                Submit Fitting Request
+              </button>
+            </form>
+          </div>
+        )}
+
         {/* --- CUSTOMER SHOPPING CONSOLE PORTAL --- */}
         {view === 'user-portal' && currentUser?.role !== 'admin' && (
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '30px' }}>
@@ -431,13 +468,13 @@ export default function App() {
                   {cart.length === 0 ? <p>Your shopping cart is currently empty.</p> : (
                     <div>
                       {cart.map(item => (
-                        <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #eee' }}>
+                        <div key={item.product._id || item.product.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #eee' }}>
                           <div style={{ flex: 1 }}>
                             <b>{item.product.name}</b> <br/> 
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '8px' }}>
                               <span>Qty:</span>
-                              <input type="number" value={item.count} min="1" onChange={(e) => updateCartQuantity(item.product.id, parseInt(e.target.value))} style={{ width: '50px', padding: '4px', borderRadius: '4px', border: '1px solid #ccc' }} />
-                              <button onClick={() => removeFromCart(item.product.id)} style={{ padding: '4px 8px', background: '#d9534f', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>❌ Remove</button>
+                              <input type="number" value={item.count} min="1" onChange={(e) => updateCartQuantity(item.product._id || item.product.id, parseInt(e.target.value) || 1)} style={{ width: '50px', padding: '4px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                              <button onClick={() => removeFromCart(item.product._id || item.product.id)} style={{ padding: '4px 8px', background: '#d9534f', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>❌ Remove</button>
                             </div>
                           </div>
                           <div><b>₹{(item.product.price * item.count).toLocaleString('en-IN')}</b></div>
@@ -460,7 +497,7 @@ export default function App() {
                   {wishlist.length === 0 ? <p>No designs saved to your wishlist yet.</p> : (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                       {wishlist.map(p => (
-                        <div key={p.id} style={{ border: '1px solid #eee', padding: '10px', borderRadius: '4px' }}>
+                        <div key={p._id || p.id} style={{ border: '1px solid #eee', padding: '10px', borderRadius: '4px' }}>
                           <h5>{p.name}</h5>
                           <button onClick={() => addToCart(p)} className="btn-primary" style={{ padding: '4px 8px', fontSize: '12px' }}>Move to Cart</button>
                         </div>
