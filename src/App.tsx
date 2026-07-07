@@ -1,9 +1,9 @@
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
-import API from './api/axios'; // Verified database connection reference
+import API from './api/axios';
 
 interface Product {
   id?: number;
-  _id?: string; // MongoDB ID
+  _id?: string;
   name: string;
   category: string;
   price: number;
@@ -69,23 +69,20 @@ const MOCK_ORDERS: Order[] = [
 ];
 
 export default function App() {
-  // Navigation View States
   const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'auth' | 'user-portal' | 'admin'>('home');
   const [isLoginMode, setIsLoginMode] = useState<boolean>(true);
   const [userSubView, setUserSubView] = useState<'cart' | 'wishlist' | 'orders'>('cart');
-  const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'customers' | 'uploader' | 'purchases'>('fittings');
+  const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'customers' | 'uploader' | 'purchases' | 'products'>('fittings');
   
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [loadingProducts, setLoadingProducts] = useState(false);
 
-  // Shared State Containers
   const [cart, setCart] = useState<{product: Product, count: number}[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>(MOCK_ORDERS);
   const [checkoutStep, setCheckoutStep] = useState<'idle' | 'processing' | 'success'>('idle');
 
-  // Unified Authenticational States
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -93,14 +90,13 @@ export default function App() {
   const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Bespoke Fitting States
   const [clientName, setClientName] = useState('');
   const [email, setEmail] = useState('');
   const [bust, setBust] = useState('');
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
+  const [bespokeProductName, setBespokeProductName] = useState('');
 
-  // Product Creator state hooks
   const [newProdName, setNewProdName] = useState('');
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdPrice, setNewProdPrice] = useState('');
@@ -111,10 +107,10 @@ export default function App() {
   const [imageString, setImageString] = useState('');
   const [uploadStatus, setUploadStatus] = useState('');
 
-  // Invoice State management
   const [activeInvoice, setActiveInvoice] = useState<Order | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  // Fetch products from database on mount
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
@@ -123,25 +119,22 @@ export default function App() {
     fetchProductsFromDatabase();
   }, []);
 
-  // Fetch products from database - FIXED
   const fetchProductsFromDatabase = async () => {
     setLoadingProducts(true);
     try {
       const response = await API.get('/products');
       if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
-        // Map database products to our Product interface
         const dbProducts: Product[] = response.data.data.map((p: any) => ({
           id: undefined,
           _id: p._id,
           name: p.name,
-          category: p.category?.name || p.category, // Extract category NAME, not the whole object
+          category: p.category?.name || p.category,
           price: p.price,
           fabric: p.fabric,
           materialType: p.materialType || p.material_type || '',
           image: p.images?.[0]?.url || '',
           description: p.description
         }));
-        // Merge with initial products (avoid duplicates)
         setProducts(dbProducts.length > 0 ? dbProducts : INITIAL_PRODUCTS);
       }
     } catch (error) {
@@ -156,7 +149,6 @@ export default function App() {
     ? products 
     : products.filter(p => p.category === selectedCategory);
 
-  // Cart & Wishlist Handlers - FIXED
   const addToCart = (product: Product) => {
     setCart(prev => {
       const productKey = product._id || product.id;
@@ -208,7 +200,6 @@ export default function App() {
     }, 1500);
   };
 
-  // Update order status
   const updateStatus = (orderId: string, nextStatus: Order['status']) => {
     setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
   };
@@ -245,11 +236,7 @@ export default function App() {
 
       if (response.data.success) {
         setUploadStatus('🎉 Product published successfully and added to database!');
-        
-        // Refresh products from database instead of manually adding
         await fetchProductsFromDatabase();
-        
-        // Reset form
         setNewProdName('');
         setNewProdDesc('');
         setNewProdPrice('');
@@ -261,6 +248,23 @@ export default function App() {
       }
     } catch (err: any) {
       setUploadStatus(`❌ Server Rejected Upload: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string | undefined) => {
+    if (!productId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await API.delete(`/products/${productId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setProducts(prev => prev.filter(p => p._id !== productId));
+        setDeleteConfirm(null);
+        alert('Product deleted successfully!');
+      }
+    } catch (err: any) {
+      alert(`Error deleting product: ${err.response?.data?.message || err.message}`);
     }
   };
 
@@ -320,7 +324,7 @@ export default function App() {
       id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
       clientName,
       email,
-      items: 'Custom Bespoke Commission',
+      items: bespokeProductName || 'Custom Bespoke Commission',
       total: 0,
       status: 'Pending',
       isCustom: true,
@@ -333,11 +337,17 @@ export default function App() {
     setBust('');
     setWaist('');
     setHips('');
+    setBespokeProductName('');
     alert('Your bespoke fitting request has been submitted! Our atelier will reach out with a quote.');
     setView('home');
   };
 
-  // Get all customer purchases (non-custom orders)
+  const openBespokeForProduct = (productName: string) => {
+    setBespokeProductName(productName);
+    setView('bespoke');
+    window.scrollTo(0, 0);
+  };
+
   const getPurchasedItems = () => {
     return ordersList.filter(o => !o.isCustom);
   };
@@ -415,9 +425,12 @@ export default function App() {
                       <span className="product-price">₹{p.price.toLocaleString('en-IN')}</span>
                       {p.materialType && <span style={{ fontSize: '12px', color: '#666' }}>Material: {p.materialType}</span>}
                       {currentUser?.role !== 'admin' && (
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                          <button onClick={() => addToCart(p)} className="btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}>Add to Cart</button>
-                          <button onClick={() => addToWishlist(p)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>❤️ Wishlist</button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => addToCart(p)} className="btn-primary" style={{ padding: '6px 10px', fontSize: '12px', flex: 1 }}>Add to Cart</button>
+                            <button onClick={() => addToWishlist(p)} className="btn-secondary" style={{ padding: '6px 10px', fontSize: '12px', flex: 1 }}>❤️ Wishlist</button>
+                          </div>
+                          <button onClick={() => openBespokeForProduct(p.name)} style={{ padding: '6px 10px', fontSize: '12px', background: '#f8f8f8', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}>📏 Get Fitted</button>
                         </div>
                       )}
                     </div>
@@ -430,22 +443,39 @@ export default function App() {
 
         {/* --- BESPOKE FITTING PAGE --- */}
         {view === 'bespoke' && (
-          <div className="form-container" style={{ maxWidth: '520px', margin: '40px auto', background: '#fff', padding: '30px', borderRadius: '8px', border: '1px solid #eee' }}>
+          <div className="form-container" style={{ maxWidth: '600px', margin: '40px auto', background: '#fff', padding: '40px', borderRadius: '8px', border: '1px solid #eee' }}>
             <span className="hero-subtitle">Made to Measure</span>
             <h3 style={{ margin: '10px 0 5px 0' }}>Book a Bespoke Fitting</h3>
-            <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '25px' }}>
               Share your measurements and our atelier will craft a piece tailored precisely to you.
             </p>
-            <form onSubmit={handleBespokeSubmit} className="bespoke-form">
-              <input required type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full Name" style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }} />
-              <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email Address" style={{ display: 'block', width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '4px', border: '1px solid #ccc' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-                <input required type="number" value={bust} onChange={e => setBust(e.target.value)} placeholder="Bust (in)" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
-                <input required type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="Waist (in)" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
-                <input required type="number" value={hips} onChange={e => setHips(e.target.value)} placeholder="Hips (in)" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
+            {bespokeProductName && (
+              <div style={{ background: '#f0f0f0', padding: '12px', borderRadius: '4px', marginBottom: '20px', fontSize: '14px' }}>
+                <strong>Selected Design:</strong> {bespokeProductName}
               </div>
-              <button type="submit" className="btn-submit" style={{ width: '100%', padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                Submit Fitting Request
+            )}
+            <form onSubmit={handleBespokeSubmit} className="bespoke-form">
+              <input required type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full Name" style={{ display: 'block', width: '100%', padding: '12px', marginBottom: '15px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }} />
+              <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email Address" style={{ display: 'block', width: '100%', padding: '12px', marginBottom: '20px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }} />
+              
+              <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px', fontWeight: '600' }}>Body Measurements (inches)</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '25px' }}>
+                <div>
+                  <input required type="number" value={bust} onChange={e => setBust(e.target.value)} placeholder="Bust" style={{ padding: '12px', width: '100%', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px', boxSizing: 'border-box' }} />
+                  <span style={{ fontSize: '11px', color: '#999', marginTop: '4px', display: 'block' }}>Bust</span>
+                </div>
+                <div>
+                  <input required type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="Waist" style={{ padding: '12px', width: '100%', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px', boxSizing: 'border-box' }} />
+                  <span style={{ fontSize: '11px', color: '#999', marginTop: '4px', display: 'block' }}>Waist</span>
+                </div>
+                <div>
+                  <input required type="number" value={hips} onChange={e => setHips(e.target.value)} placeholder="Hips" style={{ padding: '12px', width: '100%', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px', boxSizing: 'border-box' }} />
+                  <span style={{ fontSize: '11px', color: '#999', marginTop: '4px', display: 'block' }}>Hips</span>
+                </div>
+              </div>
+              
+              <button type="submit" className="btn-submit" style={{ width: '100%', padding: '14px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', letterSpacing: '0.5px' }}>
+                SUBMIT FITTING REQUEST
               </button>
             </form>
           </div>
@@ -543,9 +573,53 @@ export default function App() {
               <button onClick={() => setAdminSubView('fittings')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'fittings' ? '#000' : 'transparent', color: adminSubView === 'fittings' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Bespoke Custom Fits</button>
               <button onClick={() => setAdminSubView('orders')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'orders' ? '#000' : 'transparent', color: adminSubView === 'orders' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Order Management</button>
               <button onClick={() => setAdminSubView('purchases')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'purchases' ? '#000' : 'transparent', color: adminSubView === 'purchases' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>📊 Customer Purchases</button>
+              <button onClick={() => setAdminSubView('products')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'products' ? '#000' : 'transparent', color: adminSubView === 'products' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>📦 Manage Products</button>
               <button onClick={() => setAdminSubView('customers')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'customers' ? '#000' : 'transparent', color: adminSubView === 'customers' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Customer Profiles</button>
               <button onClick={() => setAdminSubView('uploader')} style={{ padding: '8px 12px', border: 'none', background: adminSubView === 'uploader' ? '#000' : 'transparent', color: adminSubView === 'uploader' ? '#fff' : '#000', cursor: 'pointer', borderRadius: '4px' }}>Product Uploader</button>
             </div>
+
+            {adminSubView === 'products' && (
+              <div>
+                <h3>Manage Products Inventory</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#eee', textAlign: 'left' }}>
+                      <th style={{ padding: '10px' }}>Product Name</th>
+                      <th style={{ padding: '10px' }}>Category</th>
+                      <th style={{ padding: '10px' }}>Price (₹)</th>
+                      <th style={{ padding: '10px' }}>Fabric</th>
+                      <th style={{ padding: '10px' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map(p => (
+                      <tr key={p._id || p.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '10px' }}><b>{p.name}</b></td>
+                        <td style={{ padding: '10px' }}>{p.category}</td>
+                        <td style={{ padding: '10px' }}>{p.price.toLocaleString('en-IN')}</td>
+                        <td style={{ padding: '10px' }}>{p.fabric}</td>
+                        <td style={{ padding: '10px' }}>
+                          <button onClick={() => setDeleteConfirm(p._id)} style={{ padding: '4px 10px', marginRight: '8px', background: '#d9534f', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>🗑️ Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {deleteConfirm && (
+              <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999 }}>
+                <div style={{ background: '#fff', padding: '30px', borderRadius: '8px', width: '400px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
+                  <h3>Delete Product?</h3>
+                  <p>Are you sure you want to permanently delete this product?</p>
+                  <div style={{ textAlign: 'right', gap: '10px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button onClick={() => setDeleteConfirm(null)} style={{ padding: '8px 16px', background: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={() => handleDeleteProduct(deleteConfirm)} style={{ padding: '8px 16px', background: '#d9534f', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {adminSubView === 'fittings' && (
               <div>
