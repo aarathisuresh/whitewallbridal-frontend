@@ -561,7 +561,7 @@ export default function App() {
                         <td style={adminStyles.tableCell}>{p.category}</td>
                         <td style={adminStyles.tableCell}>₹{p.price.toLocaleString('en-IN')}</td>
                         <td style={adminStyles.tableCell}>{p.fabric}</td>
-                        <td style={adminStyles.tableCell}><button onClick={() => setDeleteConfirm(p._id)} style={{...adminStyles.btn, background: '#d9534f', color: '#fff'}}>Delete</button></td>
+                        <td style={adminStyles.tableCell}><button onClick={() => setDeleteConfirm(p._id ?? null)} style={{...adminStyles.btn, background: '#d9534f', color: '#fff'}}>Delete</button></td>
                       </tr>
                     ))}
                   </tbody>
