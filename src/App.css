@@ -440,3 +440,65 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ============================================================
+   Customer portal — Cart / Wishlist / Orders
+   ============================================================ */
+.portal { max-width: 1000px; margin: 0 auto; padding: 60px 40px 96px; }
+.portal-tabs { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 40px; }
+.portal-title { text-align: center; font-weight: 500; font-size: clamp(26px, 3.5vw, 40px); color: var(--ink); margin: 0 0 34px; }
+
+.empty-note { text-align: center; padding: 44px 0; }
+.empty-note p { font-family: 'Jost', sans-serif; font-weight: 300; font-size: 16px; color: var(--ink-soft); margin: 0 0 20px; }
+.success-note { text-align: center; font-family: 'Jost', sans-serif; color: var(--bordeaux); letter-spacing: 0.04em; margin-top: 20px; }
+
+/* Cart */
+.cart-list { display: flex; flex-direction: column; gap: 14px; max-width: 740px; margin: 0 auto; }
+.cart-item { display: flex; align-items: center; gap: 18px; background: #fff; border: 1px solid var(--line); padding: 14px; }
+.cart-item img { width: 68px; height: 90px; object-fit: cover; flex: none; background: var(--wall-2); }
+.ci-info { flex: 1; min-width: 0; }
+.ci-name { font-family: 'Cormorant Garamond', serif; font-size: 19px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.ci-size { font-family: 'Jost', sans-serif; font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+.ci-controls { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+.cart-qty { width: 58px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 2px; font-family: 'Jost', sans-serif; font-size: 14px; color: var(--ink); }
+.ci-remove { background: none; border: none; color: var(--bordeaux); font-family: 'Jost', sans-serif; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; padding: 0; }
+.ci-remove:hover { color: var(--bordeaux-deep); text-decoration: underline; }
+.ci-price { font-family: 'Jost', sans-serif; font-size: 16px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+
+.cart-summary { max-width: 740px; margin: 26px auto 0; border-top: 2px solid var(--ink); padding-top: 22px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; }
+.cart-total { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 600; color: var(--ink); line-height: 1; }
+.cart-total span { display: block; font-family: 'Jost', sans-serif; font-size: 12px; font-weight: 400; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 4px; }
+
+/* Wishlist */
+.wishlist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 28px 20px; }
+.wish-card { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); padding: 14px; transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s; }
+.wish-card:hover { transform: translateY(-4px); box-shadow: 0 16px 36px rgba(42, 33, 38, 0.1); border-color: var(--gold); }
+.wish-card img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; background: var(--wall-2); }
+.wish-card h4 { margin: 14px 2px 6px; font-size: 19px; font-weight: 600; line-height: 1.25; color: var(--ink); }
+.wish-card .wprice { margin: 0 2px 14px; font-family: 'Jost', sans-serif; font-size: 15px; color: var(--ink); }
+.wish-card .btn { margin-top: auto; width: 100%; padding: 11px 12px; font-size: 11.5px; }
+
+/* Orders table */
+.data-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); }
+.data-table th { font-family: 'Jost', sans-serif; font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; text-align: left; padding: 14px 16px; background: var(--wall-2); color: var(--ink-soft); border-bottom: 1px solid var(--line); }
+.data-table td { font-family: 'Jost', sans-serif; font-size: 14px; padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.data-table tr:last-child td { border-bottom: none; }
+.status-badge { display: inline-block; font-family: 'Jost', sans-serif; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 11px; border-radius: 999px; background: var(--wall-2); border: 1px solid var(--line); color: var(--ink); }
+
+@media (max-width: 860px) {
+  .portal { padding: 48px 20px 74px; }
+}
+@media (max-width: 560px) {
+  .cart-item { flex-wrap: wrap; }
+  .ci-price { width: 100%; }
+  .data-table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+
+/* Checkout delivery-address field */
+.checkout-fields { max-width: 740px; margin: 24px auto 0; }
+.checkout-fields label { display: block; font-family: 'Jost', sans-serif; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 8px; }
+.checkout-fields textarea { width: 100%; min-height: 80px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 2px; font-family: 'Jost', sans-serif; font-size: 14px; color: var(--ink); background: #fff; resize: vertical; }
+
+/* checkout: source dropdown + spacing for its label */
+.checkout-fields textarea + label { margin-top: 16px; }
+.checkout-fields select { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 2px; font-family: 'Jost', sans-serif; font-size: 14px; color: var(--ink); background: #fff; }

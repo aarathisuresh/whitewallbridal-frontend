@@ -37,6 +37,9 @@ interface Order {
   isCustom: boolean;
   metrics?: string;
   notes?: string;
+  phone?: string;
+  address?: string;
+  source?: string;
   referenceImages?: string[];
   date: string;
 }
@@ -101,6 +104,8 @@ export default function App() {
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>(MOCK_ORDERS);
   const [checkoutStep, setCheckoutStep] = useState<'idle' | 'processing' | 'success'>('idle');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [checkoutSource, setCheckoutSource] = useState('Website');
 
   // Auth
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -117,6 +122,9 @@ export default function App() {
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
   const [bespokeProductName, setBespokeProductName] = useState('');
+  const [bespokePhone, setBespokePhone] = useState('');
+  const [bespokeAddress, setBespokeAddress] = useState('');
+  const [bespokeSource, setBespokeSource] = useState('Website');
   const [bespokeNotes, setBespokeNotes] = useState('');
   const [bespokeRefImages, setBespokeRefImages] = useState<string[]>([]);
 
@@ -215,6 +223,10 @@ export default function App() {
   };
 
   const runCheckout = () => {
+    if (!shippingAddress.trim()) {
+      alert('Please enter a delivery address before checking out.');
+      return;
+    }
     setCheckoutStep('processing');
     setTimeout(() => {
       const newOrder: Order = {
@@ -225,10 +237,13 @@ export default function App() {
         total: cart.reduce((acc, c) => acc + (c.product.price * c.count), 0),
         status: 'Pending',
         isCustom: false,
+        address: shippingAddress,
+        source: checkoutSource,
         date: new Date().toISOString().split('T')[0]
       };
       setOrdersList([newOrder, ...ordersList]);
       setCart([]);
+      setShippingAddress('');
       setCheckoutStep('success');
       setTimeout(() => setCheckoutStep('idle'), 2000);
     }, 1500);
@@ -406,6 +421,9 @@ export default function App() {
       id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
       clientName,
       email,
+      phone: bespokePhone,
+      address: bespokeAddress,
+      source: bespokeSource,
       items: bespokeProductName || 'Custom Design Request',
       total: 0,
       status: 'Pending',
@@ -418,6 +436,9 @@ export default function App() {
     setOrdersList([newOrder, ...ordersList]);
     setClientName('');
     setEmail('');
+    setBespokePhone('');
+    setBespokeAddress('');
+    setBespokeSource('Website');
     setBust('');
     setWaist('');
     setHips('');
@@ -595,6 +616,15 @@ export default function App() {
             <form onSubmit={handleBespokeSubmit}>
               <input required type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full Name" style={adminStyles.input} />
               <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={adminStyles.input} />
+              <input required type="tel" value={bespokePhone} onChange={e => setBespokePhone(e.target.value)} placeholder="Mobile Number" style={adminStyles.input} />
+              <textarea required value={bespokeAddress} onChange={e => setBespokeAddress(e.target.value)} placeholder="Address" style={{ ...adminStyles.input, height: '70px' }} />
+
+              <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>How are you reaching us?</p>
+              <select value={bespokeSource} onChange={e => setBespokeSource(e.target.value)} style={adminStyles.input}>
+                <option>Website</option>
+                <option>Boutique</option>
+                <option>Social Media</option>
+              </select>
 
               <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>Measurements (inches)</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
@@ -625,69 +655,107 @@ export default function App() {
         )}
 
         {view === 'user-portal' && (
-          <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <button onClick={() => setUserSubView('cart')} style={{ marginRight: '10px', fontWeight: userSubView === 'cart' ? 'bold' : 'normal' }}>Cart</button>
-              <button onClick={() => setUserSubView('wishlist')} style={{ marginRight: '10px', fontWeight: userSubView === 'wishlist' ? 'bold' : 'normal' }}>Wishlist</button>
-              <button onClick={() => setUserSubView('orders')} style={{ marginRight: '10px', fontWeight: userSubView === 'orders' ? 'bold' : 'normal' }}>Orders</button>
+          <div className="portal">
+            <div className="portal-tabs">
+              <button className={userSubView === 'cart' ? 'pill active' : 'pill'} onClick={() => setUserSubView('cart')}>Cart</button>
+              <button className={userSubView === 'wishlist' ? 'pill active' : 'pill'} onClick={() => setUserSubView('wishlist')}>Wishlist</button>
+              <button className={userSubView === 'orders' ? 'pill active' : 'pill'} onClick={() => setUserSubView('orders')}>Orders</button>
             </div>
 
             {userSubView === 'cart' && (
               <div>
-                <h3>Your Cart</h3>
-                {cart.length === 0 ? <p>Empty</p> : (
-                  <div>
-                    {cart.map(item => (
-                      <div key={cartKey(item.product._id || item.product.id, item.size)} style={{ borderBottom: '1px solid #eee', padding: '10px 0' }}>
-                        <b>{item.product.name}</b>{item.size && <span style={{ color: '#666' }}> — Size {item.size}</span>}<br />
-                        <input type="number" value={item.count} onChange={e => updateCartQuantity(item.product._id || item.product.id, item.size, parseInt(e.target.value) || 1)} style={{ width: '50px', padding: '5px' }} />
-                        <button onClick={() => removeFromCart(item.product._id || item.product.id, item.size)} style={{ marginLeft: '10px' }}>Remove</button>
-                        <p>₹{(item.product.price * item.count).toLocaleString('en-IN')}</p>
-                      </div>
-                    ))}
-                    <h4>Total: ₹{cart.reduce((acc, c) => acc + (c.product.price * c.count), 0).toLocaleString('en-IN')}</h4>
-                    <button onClick={runCheckout} style={{ padding: '10px 20px', background: '#000', color: '#fff', border: 'none', cursor: 'pointer' }}>Checkout</button>
-                    {checkoutStep === 'success' && <p style={{ color: 'green' }}>Order placed!</p>}
+                <h3 className="portal-title">Your Cart</h3>
+                {cart.length === 0 ? (
+                  <div className="empty-note">
+                    <p>Your cart is empty.</p>
+                    <button className="btn btn-primary" onClick={() => setView('catalog')}>Browse the collection</button>
                   </div>
+                ) : (
+                  <>
+                    <div className="cart-list">
+                      {cart.map(item => (
+                        <div key={cartKey(item.product._id || item.product.id, item.size)} className="cart-item">
+                          <img src={item.product.image} alt={item.product.name} />
+                          <div className="ci-info">
+                            <div className="ci-name">{item.product.name}</div>
+                            {item.size && <div className="ci-size">Size {item.size}</div>}
+                            <div className="ci-controls">
+                              <input className="cart-qty" type="number" min="1" value={item.count} onChange={e => updateCartQuantity(item.product._id || item.product.id, item.size, parseInt(e.target.value) || 1)} />
+                              <button className="ci-remove" onClick={() => removeFromCart(item.product._id || item.product.id, item.size)}>Remove</button>
+                            </div>
+                          </div>
+                          <div className="ci-price">₹{(item.product.price * item.count).toLocaleString('en-IN')}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="checkout-fields">
+                      <label htmlFor="ship-addr">Delivery Address</label>
+                      <textarea id="ship-addr" value={shippingAddress} onChange={e => setShippingAddress(e.target.value)} placeholder="Flat / house no, street, area, city, PIN code" />
+                      <label htmlFor="ship-src">Purchasing via</label>
+                      <select id="ship-src" value={checkoutSource} onChange={e => setCheckoutSource(e.target.value)}>
+                        <option>Website</option>
+                        <option>Boutique</option>
+                        <option>Social Media</option>
+                      </select>
+                    </div>
+                    <div className="cart-summary">
+                      <div className="cart-total"><span>Total</span>₹{cart.reduce((acc, c) => acc + (c.product.price * c.count), 0).toLocaleString('en-IN')}</div>
+                      <button className="btn btn-primary" onClick={runCheckout}>Checkout</button>
+                    </div>
+                    {checkoutStep === 'success' && <p className="success-note">Order placed successfully.</p>}
+                  </>
                 )}
               </div>
             )}
 
             {userSubView === 'wishlist' && (
               <div>
-                <h3>Wishlist</h3>
-                {wishlist.length === 0 ? <p>Empty</p> : (
-                  wishlist.map(p => (
-                    <div key={p._id || p.id} style={{ border: '1px solid #eee', padding: '10px', marginBottom: '10px' }}>
-                      <b>{p.name}</b><br />
-                      <button onClick={() => addToCart(p, needsSize(p.category) ? 'M' : undefined)}>Move to Cart</button>
-                    </div>
-                  ))
+                <h3 className="portal-title">Wishlist</h3>
+                {wishlist.length === 0 ? (
+                  <div className="empty-note">
+                    <p>Your wishlist is empty.</p>
+                    <button className="btn btn-primary" onClick={() => setView('catalog')}>Browse the collection</button>
+                  </div>
+                ) : (
+                  <div className="wishlist-grid">
+                    {wishlist.map(p => (
+                      <div key={p._id || p.id} className="wish-card">
+                        <img src={p.image} alt={p.name} />
+                        <h4>{p.name}</h4>
+                        <p className="wprice">₹{p.price.toLocaleString('en-IN')}</p>
+                        <button className="btn btn-primary" onClick={() => addToCart(p, needsSize(p.category) ? 'M' : undefined)}>Move to Cart</button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
 
             {userSubView === 'orders' && (
               <div>
-                <h3>Order History</h3>
-                <table style={adminStyles.table}>
-                  <thead><tr style={adminStyles.tableHead}>
-                    <th style={adminStyles.tableCell}>Order ID</th>
-                    <th style={adminStyles.tableCell}>Items</th>
-                    <th style={adminStyles.tableCell}>Total</th>
-                    <th style={adminStyles.tableCell}>Status</th>
-                  </tr></thead>
-                  <tbody>
-                    {ordersList.filter(o => o.email === currentUser?.email).map(o => (
-                      <tr key={o.id}>
-                        <td style={adminStyles.tableCell}>{o.id}</td>
-                        <td style={adminStyles.tableCell}>{o.items}</td>
-                        <td style={adminStyles.tableCell}>₹{o.total.toLocaleString('en-IN')}</td>
-                        <td style={adminStyles.tableCell}>{o.status}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <h3 className="portal-title">Order History</h3>
+                {ordersList.filter(o => o.email === currentUser?.email).length === 0 ? (
+                  <div className="empty-note"><p>You have no orders yet.</p></div>
+                ) : (
+                  <table className="data-table">
+                    <thead><tr>
+                      <th>Order ID</th>
+                      <th>Items</th>
+                      <th>Total</th>
+                      <th>Status</th>
+                    </tr></thead>
+                    <tbody>
+                      {ordersList.filter(o => o.email === currentUser?.email).map(o => (
+                        <tr key={o.id}>
+                          <td>{o.id}</td>
+                          <td>{o.items}</td>
+                          <td>₹{o.total.toLocaleString('en-IN')}</td>
+                          <td><span className="status-badge">{o.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             )}
           </div>
@@ -779,7 +847,13 @@ export default function App() {
                   <tbody>
                     {ordersList.filter(o => o.isCustom).map(o => (
                       <tr key={o.id}>
-                        <td style={adminStyles.tableCell}>{o.clientName}</td>
+                        <td style={adminStyles.tableCell}>
+                          {o.clientName}
+                          {o.phone && <div style={{ fontSize: '12px', color: '#666' }}>{o.phone}</div>}
+                          {o.email && <div style={{ fontSize: '12px', color: '#666' }}>{o.email}</div>}
+                          {o.address && <div style={{ fontSize: '12px', color: '#666' }}>{o.address}</div>}
+                          {o.source && <div style={{ fontSize: '12px', color: '#0275d8' }}>via {o.source}</div>}
+                        </td>
                         <td style={adminStyles.tableCell}>{o.items}</td>
                         <td style={adminStyles.tableCell}>{o.metrics}</td>
                         <td style={adminStyles.tableCell}>{o.notes || '—'}</td>
@@ -848,6 +922,7 @@ export default function App() {
                     <th style={adminStyles.tableCell}>Order ID</th>
                     <th style={adminStyles.tableCell}>Customer</th>
                     <th style={adminStyles.tableCell}>Item</th>
+                    <th style={adminStyles.tableCell}>Address</th>
                     <th style={adminStyles.tableCell}>Amount</th>
                     <th style={adminStyles.tableCell}>Date</th>
                   </tr></thead>
@@ -855,8 +930,12 @@ export default function App() {
                     {getPurchasedItems().map(o => (
                       <tr key={o.id}>
                         <td style={adminStyles.tableCell}>{o.id}</td>
-                        <td style={adminStyles.tableCell}>{o.clientName}</td>
+                        <td style={adminStyles.tableCell}>
+                          {o.clientName}
+                          {o.source && <div style={{ fontSize: '12px', color: '#0275d8' }}>via {o.source}</div>}
+                        </td>
                         <td style={adminStyles.tableCell}>{o.items}</td>
+                        <td style={adminStyles.tableCell}>{o.address || '—'}</td>
                         <td style={adminStyles.tableCell}>₹{o.total.toLocaleString('en-IN')}</td>
                         <td style={adminStyles.tableCell}>{o.date}</td>
                       </tr>
