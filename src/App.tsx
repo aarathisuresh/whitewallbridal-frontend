@@ -95,7 +95,7 @@ const MOCK_ORDERS: Order[] = [
 
 export default function App() {
   // View state
-  const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'auth' | 'user-portal' | 'admin'>('home');
+  const [view, setView] = useState<'home' | 'catalog' | 'gallery' | 'bespoke' | 'auth' | 'user-portal' | 'admin'>('home');
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [userSubView, setUserSubView] = useState<'cart' | 'wishlist' | 'orders'>('cart');
   const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'purchases' | 'products' | 'customers' | 'uploader' | 'social' | 'media'>('fittings');
@@ -582,6 +582,7 @@ export default function App() {
         <nav className="nav-links">
           <button onClick={() => setView('home')}>Home</button>
           <button onClick={() => setView('catalog')}>Collections</button>
+          <button onClick={() => setView('gallery')}>Gallery</button>
           <button onClick={() => setView('bespoke')}>Custom Design</button>
 
           {currentUser && currentUser.role !== 'admin' && (
@@ -713,6 +714,27 @@ export default function App() {
                 })
               )}
             </div>
+          </div>
+        )}
+
+        {view === 'gallery' && (
+          <div className="lookbook">
+            <div className="section-head">
+              <span className="eyebrow">Lookbook</span>
+              <h3>Design Gallery</h3>
+            </div>
+            {designLibrary.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#8a7f86' }}>Our gallery is being curated — please check back soon.</p>
+            ) : (
+              <div className="lookbook-grid">
+                {designLibrary.map(item => (
+                  <figure className="lookbook-item" key={item.id}>
+                    <img src={item.url} alt={item.label || 'Design'} />
+                    {item.label && <figcaption>{item.label}</figcaption>}
+                  </figure>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

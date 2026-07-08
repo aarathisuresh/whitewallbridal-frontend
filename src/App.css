@@ -546,3 +546,17 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 .media-remove { align-self: flex-start; background: none; border: none; color: var(--bordeaux); font-family: 'Jost', sans-serif; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; padding: 0; }
 .media-remove:hover { color: var(--bordeaux-deep); text-decoration: underline; }
 .lib-upload { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
+
+/* ============================================================
+   Customer-facing Gallery / Lookbook (shows Design Library)
+   ============================================================ */
+.lookbook { max-width: 1200px; margin: 0 auto; padding: 64px 40px 96px; }
+.lookbook-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 22px; }
+.lookbook-item { margin: 0; position: relative; overflow: hidden; border: 1px solid var(--line); background: #fff; }
+.lookbook-item img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; background: var(--wall-2); transition: transform 0.6s ease; }
+.lookbook-item:hover img { transform: scale(1.05); }
+.lookbook-item figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px; background: linear-gradient(transparent, rgba(28, 16, 20, 0.78)); color: #fff; font-family: 'Jost', sans-serif; font-size: 13px; letter-spacing: 0.04em; }
+@media (max-width: 560px) {
+  .lookbook { padding: 48px 20px 74px; }
+  .lookbook-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+}
