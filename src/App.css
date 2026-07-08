@@ -532,3 +532,17 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
   .sc-form { grid-template-columns: 1fr; }
   .sc-form [style*="span 2"] { grid-column: auto !important; }
 }
+
+/* ============================================================
+   Media Management — customer uploads + design library
+   ============================================================ */
+.media-mgmt h3 { color: var(--ink); }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+.media-item { margin: 0; background: #fff; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.media-item img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background: var(--wall-2); }
+.media-item figcaption { padding: 10px 12px; font-family: 'Jost', sans-serif; font-size: 12.5px; color: var(--ink-soft); display: flex; flex-direction: column; gap: 4px; }
+.media-item figcaption strong { color: var(--ink); font-weight: 600; font-size: 13px; }
+.media-item figcaption span { font-size: 12px; }
+.media-remove { align-self: flex-start; background: none; border: none; color: var(--bordeaux); font-family: 'Jost', sans-serif; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; padding: 0; }
+.media-remove:hover { color: var(--bordeaux-deep); text-decoration: underline; }
+.lib-upload { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }

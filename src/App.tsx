@@ -98,7 +98,7 @@ export default function App() {
   const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'auth' | 'user-portal' | 'admin'>('home');
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [userSubView, setUserSubView] = useState<'cart' | 'wishlist' | 'orders'>('cart');
-  const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'purchases' | 'products' | 'customers' | 'uploader' | 'social'>('fittings');
+  const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'purchases' | 'products' | 'customers' | 'uploader' | 'social' | 'media'>('fittings');
 
   // Products
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -153,6 +153,11 @@ export default function App() {
   const [scInteraction, setScInteraction] = useState('');
   const [scRefImages, setScRefImages] = useState<string[]>([]);
   const [scFilter, setScFilter] = useState<'All' | 'Instagram' | 'WhatsApp' | 'Boutique'>('All');
+
+  // Media management
+  const [mediaTab, setMediaTab] = useState<'uploads' | 'library'>('uploads');
+  const [designLibrary, setDesignLibrary] = useState<Array<{ id: string; url: string; label: string }>>([]);
+  const [libLabel, setLibLabel] = useState('');
 
   // Product upload
   const [newProdName, setNewProdName] = useState('');
@@ -218,6 +223,15 @@ export default function App() {
     !o.isCustom &&
     ['Instagram', 'WhatsApp', 'Boutique'].includes(o.source || '') &&
     (scFilter === 'All' || o.source === scFilter)
+  );
+
+  const customerUploads = ordersList.flatMap(o =>
+    (o.referenceImages || []).map(img => ({
+      img,
+      name: o.clientName,
+      orderId: o.id,
+      source: o.isCustom ? 'Custom Design' : (o.source || 'Order'),
+    }))
   );
 
   const cartKey = (productId: string | number | undefined, size?: string) => `${productId}__${size || ''}`;
@@ -533,6 +547,22 @@ export default function App() {
     setScDeliveryStatus('Pending'); setScTrackingId(''); setScCourier('');
     setScNotes(''); setScInteraction(''); setScRefImages([]);
     alert('Order recorded!');
+  };
+
+  const handleLibraryUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const label = libLabel;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => setDesignLibrary(prev => [...prev, { id: `LIB-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url: reader.result as string, label }]);
+      reader.readAsDataURL(file);
+    });
+    setLibLabel('');
+  };
+
+  const deleteLibraryItem = (id: string) => {
+    setDesignLibrary(prev => prev.filter(item => item.id !== id));
   };
 
   const adminStyles = {
@@ -851,6 +881,7 @@ export default function App() {
               <button onClick={() => setAdminSubView('customers')} style={{ ...adminStyles.tab, ...(adminSubView === 'customers' ? adminStyles.activeTab : {}) }}>Customers</button>
               <button onClick={() => setAdminSubView('uploader')} style={{ ...adminStyles.tab, ...(adminSubView === 'uploader' ? adminStyles.activeTab : {}) }}>Upload</button>
               <button onClick={() => setAdminSubView('social')} style={{ ...adminStyles.tab, ...(adminSubView === 'social' ? adminStyles.activeTab : {}) }}>Social Commerce</button>
+              <button onClick={() => setAdminSubView('media')} style={{ ...adminStyles.tab, ...(adminSubView === 'media' ? adminStyles.activeTab : {}) }}>Media</button>
             </div>
 
             {adminSubView === 'products' && (
@@ -1185,6 +1216,63 @@ export default function App() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {adminSubView === 'media' && (
+              <div className="media-mgmt">
+                <h3>Media Management</h3>
+                <p style={{ color: '#666', marginTop: '-6px', marginBottom: '20px', fontSize: '14px' }}>Review images customers have sent, and keep a library of your own design references.</p>
+
+                <div className="sc-filter">
+                  <button className={mediaTab === 'uploads' ? 'pill active' : 'pill'} onClick={() => setMediaTab('uploads')}>Customer Uploads</button>
+                  <button className={mediaTab === 'library' ? 'pill active' : 'pill'} onClick={() => setMediaTab('library')}>Design Library</button>
+                </div>
+
+                {mediaTab === 'uploads' && (
+                  customerUploads.length === 0 ? (
+                    <p style={{ color: '#888' }}>No customer uploads yet. Reference images from Custom Design requests and Social Commerce orders will appear here.</p>
+                  ) : (
+                    <div className="media-grid">
+                      {customerUploads.map((u, i) => (
+                        <figure className="media-item" key={i}>
+                          <img src={u.img} alt={`Upload from ${u.name}`} />
+                          <figcaption>
+                            <strong>{u.name || 'Customer'}</strong>
+                            <span>{u.orderId} · {u.source}</span>
+                          </figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                  )
+                )}
+
+                {mediaTab === 'library' && (
+                  <div>
+                    <div className="lib-upload">
+                      <input type="text" value={libLabel} onChange={e => setLibLabel(e.target.value)} placeholder="Label / tag (optional) — e.g. Zari work, Blush palette" style={{ ...adminStyles.input, maxWidth: '340px', marginBottom: 0 }} />
+                      <label className="btn btn-outline" style={{ cursor: 'pointer' }}>
+                        Upload Images
+                        <input type="file" accept="image/*" multiple onChange={handleLibraryUpload} style={{ display: 'none' }} />
+                      </label>
+                    </div>
+                    {designLibrary.length === 0 ? (
+                      <p style={{ color: '#888' }}>Your reference library is empty. Add a label if you like, then upload design images to build it up.</p>
+                    ) : (
+                      <div className="media-grid">
+                        {designLibrary.map(item => (
+                          <figure className="media-item" key={item.id}>
+                            <img src={item.url} alt={item.label || 'Design reference'} />
+                            <figcaption>
+                              <strong>{item.label || 'Untitled'}</strong>
+                              <button className="media-remove" onClick={() => deleteLibraryItem(item.id)}>Remove</button>
+                            </figcaption>
+                          </figure>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
