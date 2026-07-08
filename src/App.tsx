@@ -40,6 +40,13 @@ interface Order {
   phone?: string;
   address?: string;
   source?: string;
+  instagramHandle?: string;
+  interactionNotes?: string;
+  paymentStatus?: 'Unpaid' | 'Partial' | 'Paid';
+  amountPaid?: number;
+  paymentMethod?: string;
+  trackingId?: string;
+  courier?: string;
   referenceImages?: string[];
   date: string;
 }
@@ -91,7 +98,7 @@ export default function App() {
   const [view, setView] = useState<'home' | 'catalog' | 'bespoke' | 'auth' | 'user-portal' | 'admin'>('home');
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [userSubView, setUserSubView] = useState<'cart' | 'wishlist' | 'orders'>('cart');
-  const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'purchases' | 'products' | 'customers' | 'uploader'>('fittings');
+  const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'purchases' | 'products' | 'customers' | 'uploader' | 'social'>('fittings');
 
   // Products
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -127,6 +134,25 @@ export default function App() {
   const [bespokeSource, setBespokeSource] = useState('Website');
   const [bespokeNotes, setBespokeNotes] = useState('');
   const [bespokeRefImages, setBespokeRefImages] = useState<string[]>([]);
+
+  // Social Commerce (manual order desk)
+  const [scChannel, setScChannel] = useState('Instagram');
+  const [scName, setScName] = useState('');
+  const [scPhone, setScPhone] = useState('');
+  const [scHandle, setScHandle] = useState('');
+  const [scAddress, setScAddress] = useState('');
+  const [scItems, setScItems] = useState('');
+  const [scAmount, setScAmount] = useState('');
+  const [scAmountPaid, setScAmountPaid] = useState('');
+  const [scPaymentStatus, setScPaymentStatus] = useState<'Unpaid' | 'Partial' | 'Paid'>('Unpaid');
+  const [scPaymentMethod, setScPaymentMethod] = useState('Cash');
+  const [scDeliveryStatus, setScDeliveryStatus] = useState<Order['status']>('Pending');
+  const [scTrackingId, setScTrackingId] = useState('');
+  const [scCourier, setScCourier] = useState('');
+  const [scNotes, setScNotes] = useState('');
+  const [scInteraction, setScInteraction] = useState('');
+  const [scRefImages, setScRefImages] = useState<string[]>([]);
+  const [scFilter, setScFilter] = useState<'All' | 'Instagram' | 'WhatsApp' | 'Boutique'>('All');
 
   // Product upload
   const [newProdName, setNewProdName] = useState('');
@@ -187,6 +213,12 @@ export default function App() {
   const filteredProducts = selectedCategory === 'All'
     ? products
     : products.filter(p => p.category === selectedCategory);
+
+  const socialOrders = ordersList.filter(o =>
+    !o.isCustom &&
+    ['Instagram', 'WhatsApp', 'Boutique'].includes(o.source || '') &&
+    (scFilter === 'All' || o.source === scFilter)
+  );
 
   const cartKey = (productId: string | number | undefined, size?: string) => `${productId}__${size || ''}`;
 
@@ -455,6 +487,53 @@ export default function App() {
   };
 
   const getPurchasedItems = () => ordersList.filter(o => !o.isCustom);
+
+  const updateOrderField = (orderId: string, patch: Partial<Order>) => {
+    setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, ...patch } : o));
+  };
+
+  const handleSocialImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => setScRefImages(prev => [...prev, reader.result as string]);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleCreateSocialOrder = (e: FormEvent) => {
+    e.preventDefault();
+    const newOrder: Order = {
+      id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
+      clientName: scName,
+      email: '',
+      phone: scPhone,
+      address: scAddress,
+      source: scChannel,
+      instagramHandle: scHandle,
+      items: scItems,
+      total: Number(scAmount) || 0,
+      amountPaid: Number(scAmountPaid) || 0,
+      paymentStatus: scPaymentStatus,
+      paymentMethod: scPaymentMethod,
+      status: scDeliveryStatus,
+      trackingId: scTrackingId,
+      courier: scCourier,
+      notes: scNotes,
+      interactionNotes: scInteraction,
+      referenceImages: scRefImages,
+      isCustom: false,
+      date: new Date().toISOString().split('T')[0],
+    };
+    setOrdersList([newOrder, ...ordersList]);
+    setScName(''); setScPhone(''); setScHandle(''); setScAddress('');
+    setScItems(''); setScAmount(''); setScAmountPaid('');
+    setScPaymentStatus('Unpaid'); setScPaymentMethod('Cash');
+    setScDeliveryStatus('Pending'); setScTrackingId(''); setScCourier('');
+    setScNotes(''); setScInteraction(''); setScRefImages([]);
+    alert('Order recorded!');
+  };
 
   const adminStyles = {
     tab: { padding: '8px 12px', border: 'none', cursor: 'pointer', borderRadius: '4px', background: 'transparent', marginRight: '5px' },
@@ -771,6 +850,7 @@ export default function App() {
               <button onClick={() => setAdminSubView('products')} style={{ ...adminStyles.tab, ...(adminSubView === 'products' ? adminStyles.activeTab : {}) }}>Products</button>
               <button onClick={() => setAdminSubView('customers')} style={{ ...adminStyles.tab, ...(adminSubView === 'customers' ? adminStyles.activeTab : {}) }}>Customers</button>
               <button onClick={() => setAdminSubView('uploader')} style={{ ...adminStyles.tab, ...(adminSubView === 'uploader' ? adminStyles.activeTab : {}) }}>Upload</button>
+              <button onClick={() => setAdminSubView('social')} style={{ ...adminStyles.tab, ...(adminSubView === 'social' ? adminStyles.activeTab : {}) }}>Social Commerce</button>
             </div>
 
             {adminSubView === 'products' && (
@@ -978,6 +1058,135 @@ export default function App() {
                   <button type="submit" style={{ gridColumn: 'span 2', padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Publish</button>
                 </form>
                 {uploadStatus && <p style={{ marginTop: '10px' }}>{uploadStatus}</p>}
+              </div>
+            )}
+
+            {adminSubView === 'social' && (
+              <div className="social-commerce">
+                <h3>Social Commerce — Order Desk</h3>
+                <p style={{ color: '#666', marginTop: '-6px', marginBottom: '20px', fontSize: '14px' }}>Record orders from Instagram, WhatsApp and walk-in customers, and track payment and delivery.</p>
+
+                <div className="sc-form-wrap">
+                  <h4 style={{ marginTop: 0 }}>Record a New Order</h4>
+                  <form onSubmit={handleCreateSocialOrder} className="sc-form">
+                    <select value={scChannel} onChange={e => setScChannel(e.target.value)} style={adminStyles.input}>
+                      <option>Instagram</option>
+                      <option>WhatsApp</option>
+                      <option>Boutique</option>
+                    </select>
+                    <input required type="text" value={scName} onChange={e => setScName(e.target.value)} placeholder="Customer name" style={adminStyles.input} />
+                    <input type="tel" value={scPhone} onChange={e => setScPhone(e.target.value)} placeholder="Phone" style={adminStyles.input} />
+                    <input type="text" value={scHandle} onChange={e => setScHandle(e.target.value)} placeholder="Instagram / social handle" style={adminStyles.input} />
+                    <input type="text" value={scAddress} onChange={e => setScAddress(e.target.value)} placeholder="Delivery address" style={{ ...adminStyles.input, gridColumn: 'span 2' }} />
+                    <textarea required value={scItems} onChange={e => setScItems(e.target.value)} placeholder="Items / order description (e.g. Crimson silk saree with stitched blouse)" style={{ ...adminStyles.input, gridColumn: 'span 2', height: '60px' }} />
+                    <input type="number" value={scAmount} onChange={e => setScAmount(e.target.value)} placeholder="Total amount (Rs)" style={adminStyles.input} />
+                    <input type="number" value={scAmountPaid} onChange={e => setScAmountPaid(e.target.value)} placeholder="Amount paid (Rs)" style={adminStyles.input} />
+                    <select value={scPaymentStatus} onChange={e => setScPaymentStatus(e.target.value as 'Unpaid' | 'Partial' | 'Paid')} style={adminStyles.input}>
+                      <option>Unpaid</option>
+                      <option>Partial</option>
+                      <option>Paid</option>
+                    </select>
+                    <select value={scPaymentMethod} onChange={e => setScPaymentMethod(e.target.value)} style={adminStyles.input}>
+                      <option>Cash</option>
+                      <option>UPI</option>
+                      <option>Card</option>
+                      <option>Bank Transfer</option>
+                    </select>
+                    <select value={scDeliveryStatus} onChange={e => setScDeliveryStatus(e.target.value as Order['status'])} style={adminStyles.input}>
+                      <option>Pending</option>
+                      <option>Pattern Cutting</option>
+                      <option>In Tailoring</option>
+                      <option>Shipped</option>
+                      <option>Delivered</option>
+                    </select>
+                    <input type="text" value={scTrackingId} onChange={e => setScTrackingId(e.target.value)} placeholder="Tracking ID (optional)" style={adminStyles.input} />
+                    <input type="text" value={scCourier} onChange={e => setScCourier(e.target.value)} placeholder="Courier (optional)" style={{ ...adminStyles.input, gridColumn: 'span 2' }} />
+                    <textarea value={scNotes} onChange={e => setScNotes(e.target.value)} placeholder="Reference info / item details" style={{ ...adminStyles.input, gridColumn: 'span 2', height: '55px' }} />
+                    <textarea value={scInteraction} onChange={e => setScInteraction(e.target.value)} placeholder="Customer interaction notes (chats, requests, follow-ups)" style={{ ...adminStyles.input, gridColumn: 'span 2', height: '55px' }} />
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={{ fontSize: '13px', color: '#666', display: 'block', marginBottom: '6px' }}>Reference images (screenshots, inspiration)</label>
+                      <input type="file" accept="image/*" multiple onChange={handleSocialImageUpload} />
+                      {scRefImages.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px', alignItems: 'center' }}>
+                          {scRefImages.map((img, i) => <img key={i} src={img} alt={`Ref ${i + 1}`} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} />)}
+                          <button type="button" onClick={() => setScRefImages([])} style={{ fontSize: '12px' }}>Clear</button>
+                        </div>
+                      )}
+                    </div>
+                    <button type="submit" className="btn btn-primary" style={{ gridColumn: 'span 2' }}>Record Order</button>
+                  </form>
+                </div>
+
+                <div className="sc-filter">
+                  {(['All', 'Instagram', 'WhatsApp', 'Boutique'] as const).map(ch => (
+                    <button key={ch} className={scFilter === ch ? 'pill active' : 'pill'} onClick={() => setScFilter(ch)}>
+                      {ch === 'Boutique' ? 'Walk-In' : ch}
+                    </button>
+                  ))}
+                </div>
+
+                {socialOrders.length === 0 ? (
+                  <p style={{ color: '#888' }}>No orders recorded for this channel yet. Use the form above to add one.</p>
+                ) : (
+                  <div className="sc-orders">
+                    {socialOrders.map(o => {
+                      const balance = (o.total || 0) - (o.amountPaid || 0);
+                      return (
+                        <div key={o.id} className="sc-order-card">
+                          <div className="sc-order-head">
+                            <div>
+                              <span className="sc-channel-tag">{o.source === 'Boutique' ? 'Walk-In' : o.source}</span>
+                              <strong style={{ marginLeft: '8px' }}>{o.clientName}</strong>
+                              {o.instagramHandle && <span style={{ color: '#666', marginLeft: '6px' }}>{o.instagramHandle}</span>}
+                            </div>
+                            <span style={{ color: '#888', fontSize: '13px' }}>{o.id} · {o.date}</span>
+                          </div>
+                          {o.phone && <div className="sc-line">Phone: {o.phone}</div>}
+                          {o.address && <div className="sc-line">Address: {o.address}</div>}
+                          <div className="sc-items">{o.items}</div>
+
+                          <div className="sc-money">
+                            <span>Total <strong>₹{(o.total || 0).toLocaleString('en-IN')}</strong></span>
+                            <span>Paid <strong>₹{(o.amountPaid || 0).toLocaleString('en-IN')}</strong></span>
+                            <span style={{ color: balance > 0 ? '#b02a37' : '#1a7f37' }}>Balance <strong>₹{balance.toLocaleString('en-IN')}</strong></span>
+                            {o.paymentMethod && <span>Method <strong>{o.paymentMethod}</strong></span>}
+                          </div>
+
+                          <div className="sc-controls">
+                            <label>Payment
+                              <select value={o.paymentStatus || 'Unpaid'} onChange={e => updateOrderField(o.id, { paymentStatus: e.target.value as 'Unpaid' | 'Partial' | 'Paid' })}>
+                                <option>Unpaid</option><option>Partial</option><option>Paid</option>
+                              </select>
+                            </label>
+                            <label>Paid (Rs)
+                              <input type="number" value={o.amountPaid || 0} onChange={e => updateOrderField(o.id, { amountPaid: Number(e.target.value) || 0 })} style={{ width: '90px' }} />
+                            </label>
+                            <label>Delivery
+                              <select value={o.status} onChange={e => updateOrderField(o.id, { status: e.target.value as Order['status'] })}>
+                                <option>Pending</option><option>Pattern Cutting</option><option>In Tailoring</option><option>Shipped</option><option>Delivered</option>
+                              </select>
+                            </label>
+                            <label>Tracking
+                              <input type="text" value={o.trackingId || ''} onChange={e => updateOrderField(o.id, { trackingId: e.target.value })} placeholder="ID" style={{ width: '110px' }} />
+                            </label>
+                          </div>
+
+                          {(o.notes || o.interactionNotes) && (
+                            <div className="sc-notes">
+                              {o.notes && <div><strong>Reference:</strong> {o.notes}</div>}
+                              {o.interactionNotes && <div><strong>Interaction:</strong> {o.interactionNotes}</div>}
+                            </div>
+                          )}
+                          {o.referenceImages && o.referenceImages.length > 0 && (
+                            <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                              {o.referenceImages.slice(0, 5).map((img, i) => <img key={i} src={img} alt={`Ref ${i + 1}`} style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} />)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -505,3 +505,30 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
 /* checkout: source dropdown + spacing for its label */
 .checkout-fields textarea + label { margin-top: 16px; }
 .checkout-fields select { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 2px; font-family: 'Jost', sans-serif; font-size: 14px; color: var(--ink); background: #fff; }
+
+/* ============================================================
+   Social Commerce — admin order desk
+   ============================================================ */
+.social-commerce h3 { color: var(--ink); }
+.sc-form-wrap { background: var(--wall-2); border: 1px solid var(--line); border-radius: 4px; padding: 22px; margin-bottom: 30px; }
+.sc-form-wrap h4 { font-size: 22px; font-weight: 600; color: var(--ink); margin: 0 0 16px; }
+.sc-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sc-filter { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
+.sc-orders { display: flex; flex-direction: column; gap: 14px; }
+.sc-order-card { background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--bordeaux); border-radius: 4px; padding: 16px 18px; }
+.sc-order-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.sc-order-head strong { font-family: 'Jost', sans-serif; font-size: 16px; color: var(--ink); }
+.sc-channel-tag { display: inline-block; font-family: 'Jost', sans-serif; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--ink); color: #fff; padding: 3px 9px; border-radius: 999px; }
+.sc-line { font-family: 'Jost', sans-serif; font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+.sc-items { font-family: 'Jost', sans-serif; font-size: 14px; color: var(--ink); margin: 10px 0; }
+.sc-money { display: flex; gap: 24px; flex-wrap: wrap; font-family: 'Jost', sans-serif; font-size: 14px; color: var(--ink-soft); padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.sc-money strong { color: var(--ink); font-weight: 600; }
+.sc-controls { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; }
+.sc-controls label { font-family: 'Jost', sans-serif; font-size: 10.5px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); display: flex; flex-direction: column; gap: 5px; }
+.sc-controls select, .sc-controls input { font-family: 'Jost', sans-serif; font-size: 13px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 2px; background: #fff; color: var(--ink); }
+.sc-notes { margin-top: 12px; font-family: 'Jost', sans-serif; font-size: 13px; line-height: 1.55; color: var(--ink-soft); background: var(--wall); padding: 10px 12px; border-radius: 4px; }
+.sc-notes strong { color: var(--ink); }
+@media (max-width: 560px) {
+  .sc-form { grid-template-columns: 1fr; }
+  .sc-form [style*="span 2"] { grid-column: auto !important; }
+}
