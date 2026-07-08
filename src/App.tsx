@@ -617,7 +617,8 @@ export default function App() {
               <input required type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full Name" style={adminStyles.input} />
               <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={adminStyles.input} />
               <input required type="tel" value={bespokePhone} onChange={e => setBespokePhone(e.target.value)} placeholder="Mobile Number" style={adminStyles.input} />
-              <textarea required value={bespokeAddress} onChange={e => setBespokeAddress(e.target.value)} placeholder="Address" style={{ ...adminStyles.input, height: '70px' }} />
+              <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>Address</p>
+              <textarea required value={bespokeAddress} onChange={e => setBespokeAddress(e.target.value)} placeholder="House / flat no, street, area, city, PIN code" style={{ ...adminStyles.input, height: '70px' }} />
 
               <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>How are you reaching us?</p>
               <select value={bespokeSource} onChange={e => setBespokeSource(e.target.value)} style={adminStyles.input}>
@@ -657,9 +658,9 @@ export default function App() {
         {view === 'user-portal' && (
           <div className="portal">
             <div className="portal-tabs">
-              <button className={userSubView === 'cart' ? 'pill active' : 'pill'} onClick={() => setUserSubView('cart')}>Cart</button>
-              <button className={userSubView === 'wishlist' ? 'pill active' : 'pill'} onClick={() => setUserSubView('wishlist')}>Wishlist</button>
-              <button className={userSubView === 'orders' ? 'pill active' : 'pill'} onClick={() => setUserSubView('orders')}>Orders</button>
+              <button className={userSubView === 'cart' ? 'active' : ''} onClick={() => setUserSubView('cart')}>Cart</button>
+              <button className={userSubView === 'wishlist' ? 'active' : ''} onClick={() => setUserSubView('wishlist')}>Wishlist</button>
+              <button className={userSubView === 'orders' ? 'active' : ''} onClick={() => setUserSubView('orders')}>Orders</button>
             </div>
 
             {userSubView === 'cart' && (

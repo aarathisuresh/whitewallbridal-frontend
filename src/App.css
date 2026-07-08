@@ -445,7 +445,10 @@ a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible
    Customer portal — Cart / Wishlist / Orders
    ============================================================ */
 .portal { max-width: 1000px; margin: 0 auto; padding: 60px 40px 96px; }
-.portal-tabs { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 40px; }
+.portal-tabs { display: flex; justify-content: center; gap: 0; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 44px; }
+.portal-tabs button { font-family: 'Jost', sans-serif; font-size: 12.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; background: none; border: none; color: var(--ink-soft); padding: 15px 30px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.2s, border-color 0.2s; }
+.portal-tabs button:hover { color: var(--ink); }
+.portal-tabs button.active { color: var(--bordeaux); border-bottom-color: var(--bordeaux); }
 .portal-title { text-align: center; font-weight: 500; font-size: clamp(26px, 3.5vw, 40px); color: var(--ink); margin: 0 0 34px; }
 
 .empty-note { text-align: center; padding: 44px 0; }
