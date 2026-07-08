@@ -13,6 +13,12 @@ interface Product {
   materialType?: string;
 }
 
+interface CartItem {
+  product: Product;
+  count: number;
+  size?: string;
+}
+
 interface User {
   id: string;
   name: string;
@@ -29,8 +35,16 @@ interface Order {
   status: 'Pending' | 'Pattern Cutting' | 'In Tailoring' | 'Shipped' | 'Delivered';
   isCustom: boolean;
   metrics?: string;
+  notes?: string;
+  referenceImages?: string[];
   date: string;
 }
+
+// Categories that need a size selection in the customer catalog
+const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const needsSize = (category: string) => category === 'Kurtis' || category === 'Dresses';
+// Stable string key for a product (works for DB items with _id and demo items with id)
+const pid = (p: Product): string => p._id || String(p.id ?? '');
 
 const INITIAL_PRODUCTS: Product[] = [
   {
@@ -74,14 +88,15 @@ export default function App() {
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [userSubView, setUserSubView] = useState<'cart' | 'wishlist' | 'orders'>('cart');
   const [adminSubView, setAdminSubView] = useState<'fittings' | 'orders' | 'purchases' | 'products' | 'customers' | 'uploader'>('fittings');
-  
+
   // Products
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [selectedSizes, setSelectedSizes] = useState<Record<string, string>>({});
 
   // Cart & Wishlist
-  const [cart, setCart] = useState<Array<{product: Product, count: number}>>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [ordersList, setOrdersList] = useState<Order[]>(MOCK_ORDERS);
   const [checkoutStep, setCheckoutStep] = useState<'idle' | 'processing' | 'success'>('idle');
@@ -94,13 +109,15 @@ export default function App() {
   const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Bespoke
+  // Bespoke / Custom Design Request
   const [clientName, setClientName] = useState('');
   const [email, setEmail] = useState('');
   const [bust, setBust] = useState('');
   const [waist, setWaist] = useState('');
   const [hips, setHips] = useState('');
   const [bespokeProductName, setBespokeProductName] = useState('');
+  const [bespokeNotes, setBespokeNotes] = useState('');
+  const [bespokeRefImages, setBespokeRefImages] = useState<string[]>([]);
 
   // Product upload
   const [newProdName, setNewProdName] = useState('');
@@ -114,13 +131,22 @@ export default function App() {
   const [uploadStatus, setUploadStatus] = useState('');
 
   // Modals
-  const [activeInvoice, setActiveInvoice] = useState<Order | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Edit product
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [editFabric, setEditFabric] = useState('');
+  const [editMaterial, setEditMaterial] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editDesc, setEditDesc] = useState('');
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
     fetchProductsFromDatabase();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchProductsFromDatabase = async () => {
@@ -149,31 +175,33 @@ export default function App() {
     }
   };
 
-  const filteredProducts = selectedCategory === 'All' 
-    ? products 
+  const filteredProducts = selectedCategory === 'All'
+    ? products
     : products.filter(p => p.category === selectedCategory);
 
-  const addToCart = (product: Product) => {
+  const cartKey = (productId: string | number | undefined, size?: string) => `${productId}__${size || ''}`;
+
+  const addToCart = (product: Product, size?: string) => {
+    const key = cartKey(product._id || product.id, size);
     setCart(prev => {
-      const key = product._id || product.id;
-      const existing = prev.find(item => (item.product._id || item.product.id) === key);
+      const existing = prev.find(item => cartKey(item.product._id || item.product.id, item.size) === key);
       if (existing) {
-        return prev.map(item => (item.product._id || item.product.id) === key ? {...item, count: item.count + 1} : item);
+        return prev.map(item => cartKey(item.product._id || item.product.id, item.size) === key ? { ...item, count: item.count + 1 } : item);
       }
-      return [...prev, { product, count: 1 }];
+      return [...prev, { product, count: 1, size }];
     });
-    alert(`Added ${product.name} to Cart!`);
+    alert(`Added ${product.name}${size ? ` (Size ${size})` : ''} to Cart!`);
   };
 
-  const removeFromCart = (productId: string | number | undefined) => {
-    setCart(prev => prev.filter(item => (item.product._id || item.product.id) !== productId));
+  const removeFromCart = (productId: string | number | undefined, size?: string) => {
+    setCart(prev => prev.filter(item => cartKey(item.product._id || item.product.id, item.size) !== cartKey(productId, size)));
   };
 
-  const updateCartQuantity = (productId: string | number | undefined, newCount: number) => {
+  const updateCartQuantity = (productId: string | number | undefined, size: string | undefined, newCount: number) => {
     if (newCount <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, size);
     } else {
-      setCart(prev => prev.map(item => (item.product._id || item.product.id) === productId ? {...item, count: newCount} : item));
+      setCart(prev => prev.map(item => cartKey(item.product._id || item.product.id, item.size) === cartKey(productId, size) ? { ...item, count: newCount } : item));
     }
   };
 
@@ -192,7 +220,7 @@ export default function App() {
         id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
         clientName: currentUser?.name || 'Guest',
         email: currentUser?.email || 'guest@retail.com',
-        items: cart.map(c => `${c.product.name} (x${c.count})`).join(', '),
+        items: cart.map(c => `${c.product.name}${c.size ? ` (Size ${c.size})` : ''} (x${c.count})`).join(', '),
         total: cart.reduce((acc, c) => acc + (c.product.price * c.count), 0),
         status: 'Pending',
         isCustom: false,
@@ -206,7 +234,7 @@ export default function App() {
   };
 
   const updateStatus = (orderId: string, nextStatus: Order['status']) => {
-    setOrdersList(prev => prev.map(o => o.id === orderId ? {...o, status: nextStatus} : o));
+    setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
   };
 
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -253,6 +281,46 @@ export default function App() {
       }
     } catch (err: any) {
       setUploadStatus(`❌ Error: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const openEditProduct = (p: Product) => {
+    setEditingProduct(p);
+    setEditName(p.name);
+    setEditPrice(String(p.price));
+    setEditFabric(p.fabric);
+    setEditMaterial(p.materialType || '');
+    setEditCategory(p.category);
+    setEditDesc(p.description);
+  };
+
+  const handleUpdateProduct = async (e: FormEvent) => {
+    e.preventDefault();
+    const id = editingProduct?._id;
+    if (!id) {
+      alert('This item has no database ID, so it cannot be edited. (It is a built-in demo product.)');
+      setEditingProduct(null);
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const response = await API.put(`/products/${id}`, {
+        name: editName,
+        price: Number(editPrice),
+        fabric: editFabric,
+        materialType: editMaterial,
+        category: editCategory,
+        description: editDesc
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        await fetchProductsFromDatabase();
+        setEditingProduct(null);
+        alert('Product updated!');
+      }
+    } catch (err: any) {
+      alert(`Error: ${err.response?.data?.message || err.message}`);
     }
   };
 
@@ -321,17 +389,29 @@ export default function App() {
     setView('home');
   };
 
+  const handleBespokeImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => setBespokeRefImages(prev => [...prev, reader.result as string]);
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleBespokeSubmit = (e: FormEvent) => {
     e.preventDefault();
     const newOrder: Order = {
       id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
       clientName,
       email,
-      items: bespokeProductName || 'Custom Bespoke Commission',
+      items: bespokeProductName || 'Custom Design Request',
       total: 0,
       status: 'Pending',
       isCustom: true,
       metrics: `B:${bust} W:${waist} H:${hips}`,
+      notes: bespokeNotes,
+      referenceImages: bespokeRefImages,
       date: new Date().toISOString().split('T')[0],
     };
     setOrdersList([newOrder, ...ordersList]);
@@ -341,7 +421,9 @@ export default function App() {
     setWaist('');
     setHips('');
     setBespokeProductName('');
-    alert('Fitting request submitted! We will contact you with a quote.');
+    setBespokeNotes('');
+    setBespokeRefImages([]);
+    alert('Custom design request submitted! We will contact you with a quote.');
     setView('home');
   };
 
@@ -365,28 +447,28 @@ export default function App() {
   return (
     <div className="app-container">
       <header className="navbar">
-        <h1 onClick={() => setView('home')} style={{cursor: 'pointer'}}>White Wall Bridal</h1>
+        <h1 onClick={() => setView('home')} style={{ cursor: 'pointer' }}>White Wall Bridal</h1>
         <nav className="nav-links">
           <button onClick={() => setView('home')}>Home</button>
           <button onClick={() => setView('catalog')}>Collections</button>
-          <button onClick={() => setView('bespoke')}>Bespoke Fitting</button>
-          
+          <button onClick={() => setView('bespoke')}>Custom Design</button>
+
           {currentUser && currentUser.role !== 'admin' && (
-            <button onClick={() => {setView('user-portal'); setUserSubView('cart');}}>
-              My Shopping ({cart.reduce((a,c)=>a+c.count,0)})
+            <button onClick={() => { setView('user-portal'); setUserSubView('cart'); }}>
+              My Shopping ({cart.reduce((a, c) => a + c.count, 0)})
             </button>
           )}
           {currentUser && currentUser.role === 'admin' && (
-            <button onClick={() => setView('admin')} style={{color: '#d9534f', fontWeight: 'bold'}}>Admin</button>
+            <button onClick={() => setView('admin')} style={{ color: '#d9534f', fontWeight: 'bold' }}>Admin</button>
           )}
-          
+
           {currentUser ? (
             <>
               <span>Hello, {currentUser.name}</span>
               <button onClick={handleLogout}>Logout</button>
             </>
           ) : (
-            <button onClick={() => {setAuthError(''); setIsLoginMode(true); setView('auth');}}>Login</button>
+            <button onClick={() => { setAuthError(''); setIsLoginMode(true); setView('auth'); }}>Login</button>
           )}
         </nav>
       </header>
@@ -397,7 +479,7 @@ export default function App() {
             <h2>Bespoke Bridal Styling & Luxury Collections</h2>
             <p>Discover clean silhouettes, handcrafted premium fabrics, tailored just for you.</p>
             <button onClick={() => setView('catalog')}>View Catalog</button>
-            <button onClick={() => setView('bespoke')}>Book Fitting</button>
+            <button onClick={() => setView('bespoke')}>Custom Design Request</button>
           </section>
         )}
 
@@ -407,8 +489,8 @@ export default function App() {
             {loadingProducts && <p>Loading...</p>}
             <div className="filter-pills">
               {['All', 'Sarees', 'Kurtis', 'Dresses'].map(cat => (
-                <button key={cat} onClick={() => setSelectedCategory(cat)} 
-                  style={{fontWeight: selectedCategory === cat ? 'bold' : 'normal'}}>
+                <button key={cat} onClick={() => setSelectedCategory(cat)}
+                  style={{ fontWeight: selectedCategory === cat ? 'bold' : 'normal' }}>
                   {cat}
                 </button>
               ))}
@@ -418,45 +500,78 @@ export default function App() {
               {filteredProducts.length === 0 ? (
                 <p>No products</p>
               ) : (
-                filteredProducts.map(p => (
-                  <div key={p._id || p.id} className="product-card">
-                    <img src={p.image} alt={p.name} />
-                    <h4>{p.name}</h4>
-                    <p>₹{p.price.toLocaleString('en-IN')}</p>
-                    {p.materialType && <p style={{fontSize: '12px', color: '#666'}}>Material: {p.materialType}</p>}
-                    
-                    {currentUser?.role !== 'admin' && (
-                      <div style={{marginTop: '10px'}}>
-                        <button onClick={() => addToCart(p)} style={{marginRight: '5px'}}>Add to Cart</button>
-                        <button onClick={() => addToWishlist(p)} style={{marginRight: '5px'}}>Wishlist</button>
-                        <button onClick={() => openBespokeForProduct(p.name)}>Get Fitted</button>
-                      </div>
-                    )}
-                  </div>
-                ))
+                filteredProducts.map(p => {
+                  const key = pid(p);
+                  const sizeable = needsSize(p.category);
+                  return (
+                    <div key={p._id || p.id} className="product-card">
+                      <img src={p.image} alt={p.name} />
+                      <h4>{p.name}</h4>
+                      <p>₹{p.price.toLocaleString('en-IN')}</p>
+                      {p.materialType && <p style={{ fontSize: '12px', color: '#666' }}>Material: {p.materialType}</p>}
+
+                      {sizeable ? (
+                        <div style={{ margin: '8px 0' }}>
+                          <label style={{ fontSize: '13px', marginRight: '6px' }}>Size:</label>
+                          <select
+                            value={selectedSizes[key] || 'M'}
+                            onChange={e => setSelectedSizes(prev => ({ ...prev, [key]: e.target.value }))}
+                            style={{ padding: '5px 8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                          >
+                            {SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: '12px', color: '#999', margin: '8px 0' }}>Free size / draped</p>
+                      )}
+
+                      {currentUser?.role !== 'admin' && (
+                        <div style={{ marginTop: '10px' }}>
+                          <button onClick={() => addToCart(p, sizeable ? (selectedSizes[key] || 'M') : undefined)} style={{ marginRight: '5px' }}>Add to Cart</button>
+                          <button onClick={() => addToWishlist(p)} style={{ marginRight: '5px' }}>Wishlist</button>
+                          <button onClick={() => openBespokeForProduct(p.name)}>Get Fitted</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
         )}
 
         {view === 'bespoke' && (
-          <div style={{maxWidth: '600px', margin: '40px auto', padding: '30px', background: '#fff', border: '1px solid #eee', borderRadius: '8px'}}>
-            <h3>Book a Bespoke Fitting</h3>
-            <p>Share your measurements and we'll craft a piece tailored for you.</p>
-            {bespokeProductName && <p style={{background: '#f0f0f0', padding: '10px', marginBottom: '20px'}}>Selected: {bespokeProductName}</p>}
-            
+          <div style={{ maxWidth: '600px', margin: '40px auto', padding: '30px', background: '#fff', border: '1px solid #eee', borderRadius: '8px' }}>
+            <h3>Custom Design Request</h3>
+            <p>Submit a custom order — upload reference images, share your measurements, and add any notes or special requirements. We'll get back to you with a quote.</p>
+            {bespokeProductName && <p style={{ background: '#f0f0f0', padding: '10px', marginBottom: '20px' }}>Selected: {bespokeProductName}</p>}
+
             <form onSubmit={handleBespokeSubmit}>
               <input required type="text" value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Full Name" style={adminStyles.input} />
               <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={adminStyles.input} />
-              
-              <p style={{fontWeight: 'bold', marginBottom: '10px'}}>Measurements (inches)</p>
-              <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px'}}>
-                <input required type="number" value={bust} onChange={e => setBust(e.target.value)} placeholder="Bust" style={{padding: '10px', borderRadius: '4px', border: '1px solid #ccc'}} />
-                <input required type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="Waist" style={{padding: '10px', borderRadius: '4px', border: '1px solid #ccc'}} />
-                <input required type="number" value={hips} onChange={e => setHips(e.target.value)} placeholder="Hips" style={{padding: '10px', borderRadius: '4px', border: '1px solid #ccc'}} />
+
+              <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>Measurements (inches)</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+                <input required type="number" value={bust} onChange={e => setBust(e.target.value)} placeholder="Bust" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <input required type="number" value={waist} onChange={e => setWaist(e.target.value)} placeholder="Waist" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <input required type="number" value={hips} onChange={e => setHips(e.target.value)} placeholder="Hips" style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }} />
               </div>
-              
-              <button type="submit" style={{width: '100%', padding: '12px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>
+
+              <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>Reference Images</p>
+              <input type="file" accept="image/*" multiple onChange={handleBespokeImageUpload} style={{ marginBottom: '10px' }} />
+              {bespokeRefImages.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '15px' }}>
+                  {bespokeRefImages.map((img, i) => (
+                    <img key={i} src={img} alt={`Reference ${i + 1}`} style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} />
+                  ))}
+                  <button type="button" onClick={() => setBespokeRefImages([])} style={{ fontSize: '12px', padding: '4px 8px' }}>Clear images</button>
+                </div>
+              )}
+
+              <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>Notes & Special Requirements</p>
+              <textarea value={bespokeNotes} onChange={e => setBespokeNotes(e.target.value)} placeholder="Fabric preferences, colours, deadlines, embellishments, occasion, etc." style={{ ...adminStyles.input, height: '100px' }} />
+
+              <button type="submit" style={{ width: '100%', padding: '12px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                 SUBMIT REQUEST
               </button>
             </form>
@@ -464,11 +579,11 @@ export default function App() {
         )}
 
         {view === 'user-portal' && (
-          <div style={{maxWidth: '1000px', margin: '20px auto'}}>
-            <div style={{marginBottom: '20px'}}>
-              <button onClick={() => setUserSubView('cart')} style={{marginRight: '10px', fontWeight: userSubView === 'cart' ? 'bold' : 'normal'}}>Cart</button>
-              <button onClick={() => setUserSubView('wishlist')} style={{marginRight: '10px', fontWeight: userSubView === 'wishlist' ? 'bold' : 'normal'}}>Wishlist</button>
-              <button onClick={() => setUserSubView('orders')} style={{marginRight: '10px', fontWeight: userSubView === 'orders' ? 'bold' : 'normal'}}>Orders</button>
+          <div style={{ maxWidth: '1000px', margin: '20px auto' }}>
+            <div style={{ marginBottom: '20px' }}>
+              <button onClick={() => setUserSubView('cart')} style={{ marginRight: '10px', fontWeight: userSubView === 'cart' ? 'bold' : 'normal' }}>Cart</button>
+              <button onClick={() => setUserSubView('wishlist')} style={{ marginRight: '10px', fontWeight: userSubView === 'wishlist' ? 'bold' : 'normal' }}>Wishlist</button>
+              <button onClick={() => setUserSubView('orders')} style={{ marginRight: '10px', fontWeight: userSubView === 'orders' ? 'bold' : 'normal' }}>Orders</button>
             </div>
 
             {userSubView === 'cart' && (
@@ -477,16 +592,16 @@ export default function App() {
                 {cart.length === 0 ? <p>Empty</p> : (
                   <div>
                     {cart.map(item => (
-                      <div key={item.product._id} style={{borderBottom: '1px solid #eee', padding: '10px 0'}}>
-                        <b>{item.product.name}</b><br/>
-                        <input type="number" value={item.count} onChange={e => updateCartQuantity(item.product._id, parseInt(e.target.value) || 1)} style={{width: '50px', padding: '5px'}} />
-                        <button onClick={() => removeFromCart(item.product._id)} style={{marginLeft: '10px'}}>Remove</button>
+                      <div key={cartKey(item.product._id || item.product.id, item.size)} style={{ borderBottom: '1px solid #eee', padding: '10px 0' }}>
+                        <b>{item.product.name}</b>{item.size && <span style={{ color: '#666' }}> — Size {item.size}</span>}<br />
+                        <input type="number" value={item.count} onChange={e => updateCartQuantity(item.product._id || item.product.id, item.size, parseInt(e.target.value) || 1)} style={{ width: '50px', padding: '5px' }} />
+                        <button onClick={() => removeFromCart(item.product._id || item.product.id, item.size)} style={{ marginLeft: '10px' }}>Remove</button>
                         <p>₹{(item.product.price * item.count).toLocaleString('en-IN')}</p>
                       </div>
                     ))}
                     <h4>Total: ₹{cart.reduce((acc, c) => acc + (c.product.price * c.count), 0).toLocaleString('en-IN')}</h4>
-                    <button onClick={runCheckout} style={{padding: '10px 20px', background: '#000', color: '#fff', border: 'none', cursor: 'pointer'}}>Checkout</button>
-                    {checkoutStep === 'success' && <p style={{color: 'green'}}>Order placed!</p>}
+                    <button onClick={runCheckout} style={{ padding: '10px 20px', background: '#000', color: '#fff', border: 'none', cursor: 'pointer' }}>Checkout</button>
+                    {checkoutStep === 'success' && <p style={{ color: 'green' }}>Order placed!</p>}
                   </div>
                 )}
               </div>
@@ -497,9 +612,9 @@ export default function App() {
                 <h3>Wishlist</h3>
                 {wishlist.length === 0 ? <p>Empty</p> : (
                   wishlist.map(p => (
-                    <div key={p._id} style={{border: '1px solid #eee', padding: '10px', marginBottom: '10px'}}>
-                      <b>{p.name}</b><br/>
-                      <button onClick={() => addToCart(p)}>Move to Cart</button>
+                    <div key={p._id || p.id} style={{ border: '1px solid #eee', padding: '10px', marginBottom: '10px' }}>
+                      <b>{p.name}</b><br />
+                      <button onClick={() => addToCart(p, needsSize(p.category) ? 'M' : undefined)}>Move to Cart</button>
                     </div>
                   ))
                 )}
@@ -533,14 +648,14 @@ export default function App() {
         )}
 
         {view === 'admin' && (
-          <div style={{maxWidth: '1100px', margin: '20px auto'}}>
-            <div style={{marginBottom: '20px', display: 'flex', gap: '5px', flexWrap: 'wrap'}}>
-              <button onClick={() => setAdminSubView('fittings')} style={{...adminStyles.tab, ...(adminSubView === 'fittings' ? adminStyles.activeTab : {})}}>Fittings</button>
-              <button onClick={() => setAdminSubView('orders')} style={{...adminStyles.tab, ...(adminSubView === 'orders' ? adminStyles.activeTab : {})}}>Orders</button>
-              <button onClick={() => setAdminSubView('purchases')} style={{...adminStyles.tab, ...(adminSubView === 'purchases' ? adminStyles.activeTab : {})}}>Purchases</button>
-              <button onClick={() => setAdminSubView('products')} style={{...adminStyles.tab, ...(adminSubView === 'products' ? adminStyles.activeTab : {})}}>Products</button>
-              <button onClick={() => setAdminSubView('customers')} style={{...adminStyles.tab, ...(adminSubView === 'customers' ? adminStyles.activeTab : {})}}>Customers</button>
-              <button onClick={() => setAdminSubView('uploader')} style={{...adminStyles.tab, ...(adminSubView === 'uploader' ? adminStyles.activeTab : {})}}>Upload</button>
+          <div style={{ maxWidth: '1100px', margin: '20px auto' }}>
+            <div style={{ marginBottom: '20px', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+              <button onClick={() => setAdminSubView('fittings')} style={{ ...adminStyles.tab, ...(adminSubView === 'fittings' ? adminStyles.activeTab : {}) }}>Fittings</button>
+              <button onClick={() => setAdminSubView('orders')} style={{ ...adminStyles.tab, ...(adminSubView === 'orders' ? adminStyles.activeTab : {}) }}>Orders</button>
+              <button onClick={() => setAdminSubView('purchases')} style={{ ...adminStyles.tab, ...(adminSubView === 'purchases' ? adminStyles.activeTab : {}) }}>Purchases</button>
+              <button onClick={() => setAdminSubView('products')} style={{ ...adminStyles.tab, ...(adminSubView === 'products' ? adminStyles.activeTab : {}) }}>Products</button>
+              <button onClick={() => setAdminSubView('customers')} style={{ ...adminStyles.tab, ...(adminSubView === 'customers' ? adminStyles.activeTab : {}) }}>Customers</button>
+              <button onClick={() => setAdminSubView('uploader')} style={{ ...adminStyles.tab, ...(adminSubView === 'uploader' ? adminStyles.activeTab : {}) }}>Upload</button>
             </div>
 
             {adminSubView === 'products' && (
@@ -552,16 +667,19 @@ export default function App() {
                     <th style={adminStyles.tableCell}>Category</th>
                     <th style={adminStyles.tableCell}>Price</th>
                     <th style={adminStyles.tableCell}>Fabric</th>
-                    <th style={adminStyles.tableCell}>Action</th>
+                    <th style={adminStyles.tableCell}>Actions</th>
                   </tr></thead>
                   <tbody>
                     {products.map(p => (
-                      <tr key={p._id}>
+                      <tr key={p._id || p.id}>
                         <td style={adminStyles.tableCell}>{p.name}</td>
                         <td style={adminStyles.tableCell}>{p.category}</td>
                         <td style={adminStyles.tableCell}>₹{p.price.toLocaleString('en-IN')}</td>
                         <td style={adminStyles.tableCell}>{p.fabric}</td>
-                        <td style={adminStyles.tableCell}><button onClick={() => setDeleteConfirm(p._id ?? null)} style={{...adminStyles.btn, background: '#d9534f', color: '#fff'}}>Delete</button></td>
+                        <td style={adminStyles.tableCell}>
+                          <button onClick={() => openEditProduct(p)} style={{ ...adminStyles.btn, background: '#0275d8', color: '#fff', marginRight: '6px' }}>Edit</button>
+                          <button onClick={() => setDeleteConfirm(p._id ?? null)} style={{ ...adminStyles.btn, background: '#d9534f', color: '#fff' }}>Delete</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -570,30 +688,64 @@ export default function App() {
             )}
 
             {deleteConfirm && (
-              <div style={{position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                <div style={{background: '#fff', padding: '30px', borderRadius: '8px', width: '400px'}}>
+              <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div style={{ background: '#fff', padding: '30px', borderRadius: '8px', width: '400px' }}>
                   <h3>Delete Product?</h3>
                   <p>This cannot be undone.</p>
-                  <button onClick={() => setDeleteConfirm(null)} style={{marginRight: '10px', padding: '8px 16px'}}>Cancel</button>
-                  <button onClick={() => handleDeleteProduct(deleteConfirm)} style={{padding: '8px 16px', background: '#d9534f', color: '#fff', border: 'none', cursor: 'pointer'}}>Delete</button>
+                  <button onClick={() => setDeleteConfirm(null)} style={{ marginRight: '10px', padding: '8px 16px' }}>Cancel</button>
+                  <button onClick={() => handleDeleteProduct(deleteConfirm)} style={{ padding: '8px 16px', background: '#d9534f', color: '#fff', border: 'none', cursor: 'pointer' }}>Delete</button>
+                </div>
+              </div>
+            )}
+
+            {editingProduct && (
+              <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                <div style={{ background: '#fff', padding: '30px', borderRadius: '8px', width: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+                  <h3>Edit Product</h3>
+                  <form onSubmit={handleUpdateProduct}>
+                    <input required type="text" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Product Name" style={adminStyles.input} />
+                    <input required type="number" value={editPrice} onChange={e => setEditPrice(e.target.value)} placeholder="Price" style={adminStyles.input} />
+                    <input required type="text" value={editFabric} onChange={e => setEditFabric(e.target.value)} placeholder="Fabric" style={adminStyles.input} />
+                    <input type="text" value={editMaterial} onChange={e => setEditMaterial(e.target.value)} placeholder="Material" style={adminStyles.input} />
+                    <input required type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)} placeholder="Category (Sarees/Kurtis/Dresses)" style={adminStyles.input} />
+                    <textarea required value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Description" style={{ ...adminStyles.input, height: '80px' }} />
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                      <button type="button" onClick={() => setEditingProduct(null)} style={{ padding: '10px 16px', flex: 1 }}>Cancel</button>
+                      <button type="submit" style={{ padding: '10px 16px', flex: 1, background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Save Changes</button>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}
 
             {adminSubView === 'fittings' && (
               <div>
-                <h3>Bespoke Fittings</h3>
+                <h3>Custom Design Requests</h3>
                 <table style={adminStyles.table}>
                   <thead><tr style={adminStyles.tableHead}>
                     <th style={adminStyles.tableCell}>Client</th>
+                    <th style={adminStyles.tableCell}>Design</th>
                     <th style={adminStyles.tableCell}>Measurements</th>
+                    <th style={adminStyles.tableCell}>Notes</th>
+                    <th style={adminStyles.tableCell}>Refs</th>
                     <th style={adminStyles.tableCell}>Status</th>
                   </tr></thead>
                   <tbody>
                     {ordersList.filter(o => o.isCustom).map(o => (
                       <tr key={o.id}>
                         <td style={adminStyles.tableCell}>{o.clientName}</td>
+                        <td style={adminStyles.tableCell}>{o.items}</td>
                         <td style={adminStyles.tableCell}>{o.metrics}</td>
+                        <td style={adminStyles.tableCell}>{o.notes || '—'}</td>
+                        <td style={adminStyles.tableCell}>
+                          {o.referenceImages && o.referenceImages.length > 0 ? (
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              {o.referenceImages.slice(0, 3).map((img, i) => (
+                                <img key={i} src={img} alt={`Ref ${i + 1}`} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '3px', border: '1px solid #ddd' }} />
+                              ))}
+                            </div>
+                          ) : '—'}
+                        </td>
                         <td style={adminStyles.tableCell}>
                           <select value={o.status} onChange={e => updateStatus(o.id, e.target.value as any)}>
                             <option>Pending</option>
@@ -687,28 +839,28 @@ export default function App() {
             )}
 
             {adminSubView === 'uploader' && (
-              <div style={{background: '#f9f9f9', padding: '20px', borderRadius: '8px'}}>
+              <div style={{ background: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
                 <h3>Upload Product</h3>
-                <form onSubmit={handleProductSubmit} style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px'}}>
+                <form onSubmit={handleProductSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <input required type="text" value={newProdName} onChange={e => setNewProdName(e.target.value)} placeholder="Product Name" style={adminStyles.input} />
                   <input required type="number" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} placeholder="Price" style={adminStyles.input} />
                   <input required type="text" value={newProdFabric} onChange={e => setNewProdFabric(e.target.value)} placeholder="Fabric" style={adminStyles.input} />
                   <input required type="text" value={newProdMaterial} onChange={e => setNewProdMaterial(e.target.value)} placeholder="Material" style={adminStyles.input} />
-                  <input required type="text" value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} placeholder="Category (Sarees/Kurtis/Dresses)" style={{...adminStyles.input, gridColumn: 'span 2'}} />
-                  <textarea required value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} placeholder="Description" style={{...adminStyles.input, gridColumn: 'span 2', height: '80px'}} />
-                  <input type="file" accept="image/*" onChange={handleImageUpload} style={{gridColumn: 'span 2'}} />
-                  <button type="submit" style={{gridColumn: 'span 2', padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>Publish</button>
+                  <input required type="text" value={newProdCategory} onChange={e => setNewProdCategory(e.target.value)} placeholder="Category (Sarees/Kurtis/Dresses)" style={{ ...adminStyles.input, gridColumn: 'span 2' }} />
+                  <textarea required value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} placeholder="Description" style={{ ...adminStyles.input, gridColumn: 'span 2', height: '80px' }} />
+                  <input type="file" accept="image/*" onChange={handleImageUpload} style={{ gridColumn: 'span 2' }} />
+                  <button type="submit" style={{ gridColumn: 'span 2', padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Publish</button>
                 </form>
-                {uploadStatus && <p style={{marginTop: '10px'}}>{uploadStatus}</p>}
+                {uploadStatus && <p style={{ marginTop: '10px' }}>{uploadStatus}</p>}
               </div>
             )}
           </div>
         )}
 
         {view === 'auth' && (
-          <div style={{maxWidth: '400px', margin: '50px auto', padding: '30px', background: '#fff', border: '1px solid #eee', borderRadius: '8px'}}>
+          <div style={{ maxWidth: '400px', margin: '50px auto', padding: '30px', background: '#fff', border: '1px solid #eee', borderRadius: '8px' }}>
             <h3>{isLoginMode ? 'Login' : 'Register'}</h3>
-            {authError && <p style={{color: 'red'}}>{authError}</p>}
+            {authError && <p style={{ color: 'red' }}>{authError}</p>}
             <form onSubmit={isLoginMode ? handleLoginSubmit : handleRegisterSubmit}>
               {!isLoginMode && (
                 <input required type="text" value={authName} onChange={e => setAuthName(e.target.value)} placeholder="Full Name" style={adminStyles.input} />
@@ -718,13 +870,13 @@ export default function App() {
                 <input required type="text" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="Phone" style={adminStyles.input} />
               )}
               <input required type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={adminStyles.input} />
-              <button type="submit" style={{width: '100%', padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'}}>
+              <button type="submit" style={{ width: '100%', padding: '10px', background: '#000', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
                 {isLoginMode ? 'Login' : 'Register'}
               </button>
             </form>
-            <p style={{textAlign: 'center', marginTop: '15px'}}>
+            <p style={{ textAlign: 'center', marginTop: '15px' }}>
               {isLoginMode ? "Don't have an account? " : "Already registered? "}
-              <span onClick={() => {setIsLoginMode(!isLoginMode); setAuthError('');}} style={{color: '#d9534f', cursor: 'pointer', fontWeight: 'bold'}}>
+              <span onClick={() => { setIsLoginMode(!isLoginMode); setAuthError(''); }} style={{ color: '#d9534f', cursor: 'pointer', fontWeight: 'bold' }}>
                 {isLoginMode ? 'Register' : 'Login'}
               </span>
             </p>
