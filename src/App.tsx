@@ -87,12 +87,6 @@ const INITIAL_PRODUCTS: Product[] = [
   }
 ];
 
-const MOCK_ORDERS: Order[] = [
-  { id: 'WWB-9821', clientName: 'Aarathi Suresh', email: 'aarathisuresh93@gmail.com', items: 'Amara Crimson Silk Saree', total: 45000, status: 'Pending', isCustom: true, metrics: 'B:34 W:28 H:38', date: '2026-07-02' },
-  { id: 'WWB-9754', clientName: 'Anjali Sharma', email: 'anjali@example.com', items: 'Elysian Rose Wedding Gown', total: 120000, status: 'In Tailoring', isCustom: true, metrics: 'B:36 W:30 H:40', date: '2026-06-28' },
-  { id: 'WWB-9610', clientName: 'Meera Nair', email: 'meera@nair.com', items: 'Ivory Blossom Anarkali Kurti', total: 8500, status: 'Shipped', isCustom: false, date: '2026-06-15' }
-];
-
 export default function App() {
   // View state
   const [view, setView] = useState<'home' | 'catalog' | 'gallery' | 'bespoke' | 'auth' | 'user-portal' | 'admin'>('home');
@@ -109,7 +103,7 @@ export default function App() {
   // Cart & Wishlist
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
-  const [ordersList, setOrdersList] = useState<Order[]>(MOCK_ORDERS);
+  const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [checkoutStep, setCheckoutStep] = useState<'idle' | 'processing' | 'success'>('idle');
   const [shippingAddress, setShippingAddress] = useState('');
   const [checkoutSource, setCheckoutSource] = useState('Website');
@@ -187,6 +181,7 @@ export default function App() {
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
     fetchProductsFromDatabase();
     fetchGalleryFromDatabase();
+    fetchOrdersFromDatabase();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -232,6 +227,42 @@ export default function App() {
     }
   };
 
+  const fetchOrdersFromDatabase = async () => {
+    try {
+      const response = await API.get('/atelier-orders', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (response.data.success && Array.isArray(response.data.data)) {
+        const dbOrders: Order[] = response.data.data.map((o: any) => ({
+          id: o._id,
+          clientName: o.clientName,
+          email: o.email || '',
+          items: o.items || '',
+          total: o.total || 0,
+          status: o.status || 'Pending',
+          isCustom: !!o.isCustom,
+          metrics: o.metrics || '',
+          notes: o.notes || '',
+          phone: o.phone || '',
+          address: o.address || '',
+          source: o.source || '',
+          instagramHandle: o.instagramHandle || '',
+          interactionNotes: o.interactionNotes || '',
+          paymentStatus: o.paymentStatus || 'Unpaid',
+          amountPaid: o.amountPaid || 0,
+          paymentMethod: o.paymentMethod || '',
+          trackingId: o.trackingId || '',
+          courier: o.courier || '',
+          referenceImages: o.referenceImages || [],
+          date: (o.createdAt ? String(o.createdAt).split('T')[0] : new Date().toISOString().split('T')[0]),
+        }));
+        setOrdersList(dbOrders);
+      }
+    } catch (error) {
+      console.log('Could not load orders', error);
+    }
+  };
+
   const filteredProducts = selectedCategory === 'All'
     ? products
     : products.filter(p => p.category === selectedCategory);
@@ -249,6 +280,19 @@ export default function App() {
       orderId: o.id,
       source: o.isCustom ? 'Custom Design' : (o.source || 'Order'),
     }))
+  );
+
+  // Build a customer directory from real orders, grouped by name.
+  const customerDirectory = Object.values(
+    ordersList.reduce((acc: Record<string, { name: string; contact: string; count: number }>, o) => {
+      const key = o.clientName || 'Unknown';
+      if (!acc[key]) {
+        acc[key] = { name: key, contact: o.email || o.phone || '', count: 0 };
+      }
+      acc[key].count += 1;
+      if (!acc[key].contact && (o.email || o.phone)) acc[key].contact = o.email || o.phone || '';
+      return acc;
+    }, {})
   );
 
   const cartKey = (productId: string | number | undefined, size?: string) => `${productId}__${size || ''}`;
@@ -291,9 +335,9 @@ export default function App() {
       return;
     }
     setCheckoutStep('processing');
-    setTimeout(() => {
-      const newOrder: Order = {
-        id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
+    setTimeout(async () => {
+      const payload = {
+        orderCode: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
         clientName: currentUser?.name || 'Guest',
         email: currentUser?.email || 'guest@retail.com',
         items: cart.map(c => `${c.product.name}${c.size ? ` (Size ${c.size})` : ''} (x${c.count})`).join(', '),
@@ -302,9 +346,14 @@ export default function App() {
         isCustom: false,
         address: shippingAddress,
         source: checkoutSource,
-        date: new Date().toISOString().split('T')[0]
       };
-      setOrdersList([newOrder, ...ordersList]);
+      try {
+        await API.post('/atelier-orders', payload, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+      } catch (err) {
+        console.log('Could not save order', err);
+      }
       setCart([]);
       setShippingAddress('');
       setCheckoutStep('success');
@@ -314,6 +363,11 @@ export default function App() {
 
   const updateStatus = (orderId: string, nextStatus: Order['status']) => {
     setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, status: nextStatus } : o));
+    API.patch(`/atelier-orders/${orderId}`, { status: nextStatus }, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    }).catch(err => {
+      alert(`Could not save status: ${err.response?.data?.message || err.message}`);
+    });
   };
 
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -478,10 +532,10 @@ export default function App() {
     });
   };
 
-  const handleBespokeSubmit = (e: FormEvent) => {
+  const handleBespokeSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const newOrder: Order = {
-      id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
+    const payload = {
+      orderCode: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
       clientName,
       email,
       phone: bespokePhone,
@@ -494,9 +548,13 @@ export default function App() {
       metrics: `B:${bust} W:${waist} H:${hips}`,
       notes: bespokeNotes,
       referenceImages: bespokeRefImages,
-      date: new Date().toISOString().split('T')[0],
     };
-    setOrdersList([newOrder, ...ordersList]);
+    try {
+      await API.post('/atelier-orders', payload);
+    } catch (err: any) {
+      alert(`Could not submit request: ${err.response?.data?.message || err.message}`);
+      return;
+    }
     setClientName('');
     setEmail('');
     setBespokePhone('');
@@ -521,6 +579,11 @@ export default function App() {
 
   const updateOrderField = (orderId: string, patch: Partial<Order>) => {
     setOrdersList(prev => prev.map(o => o.id === orderId ? { ...o, ...patch } : o));
+    API.patch(`/atelier-orders/${orderId}`, patch, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    }).catch(err => {
+      alert(`Could not save change: ${err.response?.data?.message || err.message}`);
+    });
   };
 
   const handleSocialImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -533,10 +596,10 @@ export default function App() {
     });
   };
 
-  const handleCreateSocialOrder = (e: FormEvent) => {
+  const handleCreateSocialOrder = async (e: FormEvent) => {
     e.preventDefault();
-    const newOrder: Order = {
-      id: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
+    const payload = {
+      orderCode: `WWB-${Math.floor(1000 + Math.random() * 9000)}`,
       clientName: scName,
       email: '',
       phone: scPhone,
@@ -555,9 +618,16 @@ export default function App() {
       interactionNotes: scInteraction,
       referenceImages: scRefImages,
       isCustom: false,
-      date: new Date().toISOString().split('T')[0],
     };
-    setOrdersList([newOrder, ...ordersList]);
+    try {
+      await API.post('/atelier-orders', payload, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      await fetchOrdersFromDatabase();
+    } catch (err: any) {
+      alert(`Could not record order: ${err.response?.data?.message || err.message}`);
+      return;
+    }
     setScName(''); setScPhone(''); setScHandle(''); setScAddress('');
     setScItems(''); setScAmount(''); setScAmountPaid('');
     setScPaymentStatus('Unpaid'); setScPaymentMethod('Cash');
@@ -1124,13 +1194,21 @@ export default function App() {
                 <table style={adminStyles.table}>
                   <thead><tr style={adminStyles.tableHead}>
                     <th style={adminStyles.tableCell}>Name</th>
-                    <th style={adminStyles.tableCell}>Email</th>
+                    <th style={adminStyles.tableCell}>Contact</th>
                     <th style={adminStyles.tableCell}>Orders</th>
                   </tr></thead>
                   <tbody>
-                    <tr><td style={adminStyles.tableCell}>Aarathi Suresh</td><td style={adminStyles.tableCell}>aarathisuresh93@gmail.com</td><td style={adminStyles.tableCell}>{ordersList.filter(o => o.email === 'aarathisuresh93@gmail.com').length}</td></tr>
-                    <tr><td style={adminStyles.tableCell}>Anjali Sharma</td><td style={adminStyles.tableCell}>anjali@example.com</td><td style={adminStyles.tableCell}>{ordersList.filter(o => o.email === 'anjali@example.com').length}</td></tr>
-                    <tr><td style={adminStyles.tableCell}>Meera Nair</td><td style={adminStyles.tableCell}>meera@nair.com</td><td style={adminStyles.tableCell}>{ordersList.filter(o => o.email === 'meera@nair.com').length}</td></tr>
+                    {customerDirectory.length === 0 ? (
+                      <tr><td style={adminStyles.tableCell} colSpan={3}>No customers yet.</td></tr>
+                    ) : (
+                      customerDirectory.map((c, i) => (
+                        <tr key={i}>
+                          <td style={adminStyles.tableCell}>{c.name}</td>
+                          <td style={adminStyles.tableCell}>{c.contact || '—'}</td>
+                          <td style={adminStyles.tableCell}>{c.count}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
