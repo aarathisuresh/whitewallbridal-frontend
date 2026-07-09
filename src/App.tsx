@@ -186,6 +186,7 @@ export default function App() {
     const savedUser = localStorage.getItem('user');
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
     fetchProductsFromDatabase();
+    fetchGalleryFromDatabase();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -212,6 +213,22 @@ export default function App() {
       setProducts(INITIAL_PRODUCTS);
     } finally {
       setLoadingProducts(false);
+    }
+  };
+
+  const fetchGalleryFromDatabase = async () => {
+    try {
+      const response = await API.get('/gallery');
+      if (response.data.success && Array.isArray(response.data.data)) {
+        const dbImages = response.data.data.map((g: any) => ({
+          id: g._id,
+          url: g.image,
+          label: g.label || ''
+        }));
+        setDesignLibrary(dbImages);
+      }
+    } catch (error) {
+      console.log('Could not load gallery', error);
     }
   };
 
@@ -553,16 +570,38 @@ export default function App() {
     const files = e.target.files;
     if (!files) return;
     const label = libLabel;
+    const token = localStorage.getItem('token');
     Array.from(files).forEach(file => {
       const reader = new FileReader();
-      reader.onloadend = () => setDesignLibrary(prev => [...prev, { id: `LIB-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, url: reader.result as string, label }]);
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        try {
+          const response = await API.post('/gallery', { image: base64, label }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (response.data.success) {
+            const g = response.data.data;
+            setDesignLibrary(prev => [...prev, { id: g._id, url: g.image, label: g.label || '' }]);
+          }
+        } catch (err: any) {
+          alert(`Upload failed: ${err.response?.data?.message || err.message}`);
+        }
+      };
       reader.readAsDataURL(file);
     });
     setLibLabel('');
   };
 
-  const deleteLibraryItem = (id: string) => {
-    setDesignLibrary(prev => prev.filter(item => item.id !== id));
+  const deleteLibraryItem = async (id: string) => {
+    const token = localStorage.getItem('token');
+    try {
+      await API.delete(`/gallery/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setDesignLibrary(prev => prev.filter(item => item.id !== id));
+    } catch (err: any) {
+      alert(`Delete failed: ${err.response?.data?.message || err.message}`);
+    }
   };
 
   const adminStyles = {
